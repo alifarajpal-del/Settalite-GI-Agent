@@ -30,7 +30,9 @@ Write-Host "`n" + ("=" * 60) -ForegroundColor Cyan
 if ($allPassed) {
     Write-Host "`nVERIFIED: Demo mode ready" -ForegroundColor Green
     Write-Host "`nYou can now run:" -ForegroundColor Cyan
-    Write-Host "  streamlit run run.py" -ForegroundColor White
+    Write-Host "  streamlit run app/app.py" -ForegroundColor White
+    Write-Host "`nAlternatively:" -ForegroundColor Gray
+    Write-Host "  python run.py" -ForegroundColor Gray
     exit 0
 } else {
     Write-Host "`nVERIFICATION FAILED" -ForegroundColor Red

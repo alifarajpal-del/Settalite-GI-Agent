@@ -107,9 +107,22 @@ class SatelliteService:
     
     def _get_transform(self, aoi_geometry):
         """
-        الحصول على تحويل الإحداثيات
+        Get coordinate transform (requires rasterio)
+        
+        Raises:
+            DependencyMissingError: If rasterio is not installed
         """
-        from rasterio.transform import from_bounds
+        try:
+            from rasterio.transform import from_bounds
+        except ImportError:
+            from src.utils.dependency_errors import DependencyMissingError
+            raise DependencyMissingError(
+                missing_libs=['rasterio'],
+                operation='satellite data coordinate transform',
+                install_hint='pip install -r requirements_core.txt -r requirements_geo.txt',
+                is_critical=True
+            )
+        
         bounds = aoi_geometry.bounds
         width = 500
         height = 500

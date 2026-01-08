@@ -18,7 +18,7 @@ def test_integration():
     warnings = []
     success = []
     
-    # Test 1: Config loading
+    # Test 1: Config loading with validation
     print("\n1️⃣  Testing config loader...")
     try:
         from src.config import load_config
@@ -27,11 +27,44 @@ def test_integration():
         assert isinstance(config, dict), "Config must be dict"
         assert 'app' in config, "Config must have 'app' key"
         
+        # Validate critical keys for services
+        print("   Validating critical keys...")
+        
+        # App keys
+        assert 'name' in config['app'], "Missing app.name"
+        assert 'version' in config['app'], "Missing app.version"
+        
+        # Satellite keys
+        assert 'satellite' in config, "Missing satellite config"
+        assert 'providers' in config['satellite'], "Missing satellite.providers"
+        assert 'sentinel' in config['satellite']['providers'], "Missing sentinel provider"
+        
+        sentinel = config['satellite']['providers']['sentinel']
+        assert 'resolution' in sentinel, "Missing sentinel.resolution"
+        assert 'bands' in sentinel, "Missing sentinel.bands"
+        assert 'optical' in sentinel['bands'], "Missing sentinel.bands.optical"
+        
+        # Processing keys
+        assert 'processing' in config, "Missing processing config"
+        assert 'coordinate_extraction' in config['processing'], "Missing coordinate_extraction"
+        assert 'anomaly_detection' in config['processing'], "Missing anomaly_detection"
+        assert 'spectral_indices' in config['processing'], "Missing spectral_indices"
+        
+        # Paths
+        assert 'paths' in config, "Missing paths config"
+        assert 'outputs' in config['paths'], "Missing paths.outputs"
+        assert 'exports' in config['paths'], "Missing paths.exports"
+        assert 'data' in config['paths'], "Missing paths.data"
+        
         print("✅ Config loaded successfully")
         print(f"   App: {config['app'].get('name', 'Unknown')}")
         print(f"   Version: {config['app'].get('version', 'Unknown')}")
+        print(f"   Satellite bands: {len(sentinel['bands'].get('optical', []))}")
         success.append("Config loader")
         
+    except AssertionError as e:
+        print(f"❌ Config validation failed: {e}")
+        failures.append(("Config validation", str(e)))
     except Exception as e:
         print(f"❌ Config loading failed: {e}")
         failures.append(("Config loading", str(e)))

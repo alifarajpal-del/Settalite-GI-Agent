@@ -2,31 +2,73 @@
 نظام استخراج الإحداثيات الدقيقة للمواقع المكتشفة
 """
 import numpy as np
-import geopandas as gpd
 from shapely.geometry import Point, Polygon, MultiPoint
 from sklearn.cluster import DBSCAN
-from scipy import ndimage
-import rasterio
-from rasterio.features import shapes
 from typing import List, Dict, Tuple, Optional
 import warnings
 warnings.filterwarnings('ignore')
 
+# Lazy imports for heavy dependencies
+try:
+    import geopandas as gpd
+    HAS_GEOPANDAS = True
+except ImportError:
+    HAS_GEOPANDAS = False
+
+try:
+    from scipy import ndimage
+    HAS_SCIPY = True
+except ImportError:
+    HAS_SCIPY = False
+
+try:
+    import rasterio
+    from rasterio.features import shapes
+    HAS_RASTERIO = True
+except ImportError:
+    HAS_RASTERIO = False
+
+
 class CoordinateExtractor:
     """
     استخراج الإحداثيات الدقيقة من خرائط الشذوذ
+    
+    Requires: geopandas, scipy, rasterio
     """
     
     def __init__(self, config: dict, logger):
         self.config = config
         self.logger = logger
         
+        # Check dependencies
+        self._check_dependencies()
+    
+    def _check_dependencies(self):
+        """Check if all required dependencies are available"""
+        missing = []
+        
+        if not HAS_GEOPANDAS:
+            missing.append('geopandas')
+        if not HAS_SCIPY:
+            missing.append('scipy')
+        if not HAS_RASTERIO:
+            missing.append('rasterio')
+        
+        if missing:
+            from src.utils.dependency_errors import DependencyMissingError
+            raise DependencyMissingError(
+                missing_libs=missing,
+                operation='coordinate extraction',
+                install_hint='pip install -r requirements_core.txt -r requirements_geo.txt',
+                is_critical=True
+            )
+    
     def detect_anomaly_clusters(
         self, 
         anomaly_map: np.ndarray,
-        transform: rasterio.transform.Affine,
+        transform,  # rasterio.transform.Affine
         crs: str
-    ) -> gpd.GeoDataFrame:
+    ):
         """
         كشف وتجميع العناقيد الشاذة واستخراج إحداثياتها
         

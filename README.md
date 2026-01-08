@@ -21,7 +21,7 @@ Advanced AI-powered system for detecting and precisely locating archaeological s
 pip install -r requirements_core.txt
 
 # Run the application
-streamlit run run.py
+streamlit run app/app.py
 ```
 
 Demo mode works with simulated data - no API keys or heavy libraries needed!
@@ -37,7 +37,7 @@ cp config/config.yaml.example config/config.yaml
 # Edit config.yaml with your credentials
 
 # Run the application
-streamlit run run.py
+streamlit run app/app.py
 ```
 
 ### Verify Installation
