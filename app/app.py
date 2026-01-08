@@ -15,24 +15,70 @@ import pydeck as pdk
 # إضافة المسار للوحدات
 sys.path.append(str(Path(__file__).parent.parent))
 
+# محاولة تحميل التكوين (اختياري)
 try:
     from src.config import load_config
-    from src.utils.logging_utils import setup_logger
-    from src.services.satellite_service import SatelliteService
-    from src.services.processing_service import AdvancedProcessingService
-    from src.services.detection_service import AnomalyDetectionService
-    from src.services.coordinate_extractor import CoordinateExtractor
-    from src.services.export_service import ExportService
-except ImportError as e:
-    st.error(f"خطأ في تحميل الوحدات: {e}")
-    st.stop()
+except ImportError:
+    def load_config():
+        return {
+            'app': {'name': 'Heritage Sentinel Pro', 'version': '1.0.0'},
+            'satellite': {'providers': {'sentinel': {'resolution': 10}}},
+            'processing': {
+                'coordinate_extraction': {
+                    'min_anomaly_area': 100,
+                    'confidence_threshold': 0.7,
+                    'cluster_distance': 50
+                }
+            },
+            'output': {'formats': ['geojson', 'csv']},
+            'paths': {'outputs': 'outputs', 'exports': 'exports'}
+        }
+
+# محاولة تحميل الخدمات (اختياري للوضع التجريبي)
+SatelliteService = None
+AdvancedProcessingService = None
+AnomalyDetectionService = None
+CoordinateExtractor = None
+ExportService = None
+setup_logger = None
 
 try:
-    from src.config.demo_mode import DEMO_MODE, MOCK_DATA_SOURCE, MOCK_SERVICE
+    from src.utils.logging_utils import setup_logger
 except ImportError:
-    DEMO_MODE = False
-    MOCK_DATA_SOURCE = False
-    MOCK_SERVICE = None
+    pass
+
+try:
+    from src.services.satellite_service import SatelliteService
+except ImportError:
+    pass
+
+try:
+    from src.services.processing_service import AdvancedProcessingService
+except ImportError:
+    pass
+
+try:
+    from src.services.detection_service import AnomalyDetectionService
+except ImportError:
+    pass
+
+try:
+    from src.services.coordinate_extractor import CoordinateExtractor
+except ImportError:
+    pass
+
+try:
+    from src.services.export_service import ExportService
+except ImportError:
+    pass
+
+# تحميل وضع العرض التجريبي (إجباري)
+try:
+    from src.config.demo_mode import DEMO_MODE, MOCK_DATA_SOURCE, MOCK_SERVICE
+except ImportError as e:
+    st.error(f"خطأ في تحميل وضع العرض التجريبي: {e}")
+    st.info("تأكد من وجود ملف src/config/demo_mode.py")
+    st.stop()
 
 if 'demo_mode' not in st.session_state:
     st.session_state['demo_mode'] = DEMO_MODE
