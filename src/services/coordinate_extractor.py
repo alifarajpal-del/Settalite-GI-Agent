@@ -4,9 +4,13 @@
 import numpy as np
 from shapely.geometry import Point, Polygon, MultiPoint
 from sklearn.cluster import DBSCAN
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, TYPE_CHECKING
 import warnings
 warnings.filterwarnings('ignore')
+
+# Type checking imports (not evaluated at runtime)
+if TYPE_CHECKING:
+    import rasterio.transform
 
 # Lazy imports for heavy dependencies
 try:
@@ -62,6 +66,46 @@ class CoordinateExtractor:
                 install_hint='pip install -r requirements_core.txt -r requirements_geo.txt',
                 is_critical=True
             )
+    
+    def extract_coordinates_from_anomaly_map(
+        self,
+        anomaly_map: np.ndarray,
+        anomaly_surface: Optional[np.ndarray] = None,
+        aoi_geometry: Optional[Polygon] = None
+    ) -> gpd.GeoDataFrame:
+        """
+        Simplified wrapper for pipeline use - extracts coordinates without transform.
+        
+        Args:
+            anomaly_map: Binary anomaly map (0-1)
+            anomaly_surface: Anomaly confidence surface (optional)
+            aoi_geometry: Area of interest geometry (optional)
+        
+        Returns:
+            GeoDataFrame with detected site coordinates
+        """
+        from rasterio.transform import from_bounds
+        
+        # Create a simple transform from AOI or use default
+        if aoi_geometry:
+            bounds = aoi_geometry.bounds  # (minx, miny, maxx, maxy)
+            height, width = anomaly_map.shape
+            transform = from_bounds(
+                bounds[0], bounds[1], bounds[2], bounds[3],
+                width, height
+            )
+        else:
+            # Default transform for demo data
+            height, width = anomaly_map.shape
+            transform = from_bounds(0, 0, width, height, width, height)
+        
+        # Use the existing method with generated transform
+        crs = 'EPSG:4326'
+        return self.detect_anomaly_clusters(
+            anomaly_map=anomaly_map,
+            transform=transform,
+            crs=crs
+        )
     
     def detect_anomaly_clusters(
         self, 
@@ -172,7 +216,7 @@ class CoordinateExtractor:
         self, 
         y_coords: np.ndarray, 
         x_coords: np.ndarray,
-        transform: rasterio.transform.Affine
+        transform: 'rasterio.transform.Affine'
     ) -> Polygon:
         """
         حساب المربع المحيط للمنطقة
@@ -251,7 +295,7 @@ class CoordinateExtractor:
     def extract_precise_coordinates(
         self,
         anomaly_map: np.ndarray,
-        transform: rasterio.transform.Affine,
+        transform: 'rasterio.transform.Affine',
         crs: str,
         aoi_polygon: Optional[Polygon] = None
     ) -> Dict:
