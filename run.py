@@ -27,12 +27,12 @@ def main():
         print("Heritage Sentinel Pro - AI-Powered Archaeological Detection")
         print("=" * 60)
         print()
-        print("ℹ️  Starting Streamlit application...")
+        print("Starting Streamlit application...")
         print()
-        print("📌 Recommended command:")
+        print("Recommended command:")
         print("   streamlit run app/app.py")
         print()
-        print("🔧 Launching with bootstrap...")
+        print("Launching with bootstrap...")
         print()
         
         try:
@@ -48,9 +48,9 @@ def main():
             sys.exit(st_cli.main())
             
         except Exception as e:
-            print(f"❌ Failed to launch with bootstrap: {e}")
+            print(f"Failed to launch with bootstrap: {e}")
             print()
-            print("💡 Please use the recommended command instead:")
+            print("Please use the recommended command instead:")
             print("   streamlit run app/app.py")
             sys.exit(1)
     else:
