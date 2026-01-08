@@ -46,6 +46,29 @@ except ImportError:
     st.error("⚠️ Mock data service not available. Please check src/services/mock_data_service.py")
     st.stop()
 
+# === Dependency Checker for Live Mode ===
+def check_heavy_dependencies():
+    """Check if heavy geospatial libraries are available"""
+    missing = []
+    
+    # Check critical heavy libraries
+    try:
+        import geopandas
+    except ImportError:
+        missing.append("geopandas")
+    
+    try:
+        import rasterio
+    except ImportError:
+        missing.append("rasterio")
+    
+    try:
+        import scipy
+    except ImportError:
+        missing.append("scipy")
+    
+    return missing
+
 # === Optional Full Services (for Live Mode) ===
 SERVICES_AVAILABLE = {
     'satellite': False,
@@ -54,6 +77,9 @@ SERVICES_AVAILABLE = {
     'coordinate': False,
     'export': False
 }
+
+MISSING_HEAVY_LIBS = check_heavy_dependencies()
+LIVE_MODE_READY = len(MISSING_HEAVY_LIBS) == 0
 
 try:
     from src.services.satellite_service import SatelliteService
@@ -125,11 +151,24 @@ with st.sidebar:
         st.info("Using simulated data - no API keys needed")
     else:
         st.warning("⚡ Live Mode")
-        available_count = sum(SERVICES_AVAILABLE.values())
-        st.metric("Services Available", f"{available_count}/5")
         
-        if available_count < 5:
-            st.error("⚠️ Some services unavailable. Install full requirements for live mode.")
+        if not LIVE_MODE_READY:
+            st.error("⚠️ **Missing Required Dependencies**")
+            st.markdown("Live mode requires additional geospatial libraries:")
+            for lib in MISSING_HEAVY_LIBS:
+                st.code(f"❌ {lib}", language="text")
+            
+            st.divider()
+            st.markdown("**Install with:**")
+            st.code("pip install -r requirements_core.txt -r requirements_geo.txt", language="bash")
+            st.info("💡 Or use **Demo Mode** which works without these libraries")
+        else:
+            available_count = sum(SERVICES_AVAILABLE.values())
+            st.success(f"✅ All dependencies installed")
+            st.metric("Services Available", f"{available_count}/5")
+            
+            if available_count < 5:
+                st.warning("⚠️ Some services unavailable")
 
 # === Demo Mode Section ===
 if is_demo:
@@ -237,13 +276,25 @@ if is_demo:
 else:
     st.header("🛰️ Live Mode - Full Pipeline")
     
-    if sum(SERVICES_AVAILABLE.values()) < 3:
-        st.error(
-            "❌ Live mode requires additional dependencies. "
-            "Please install: `pip install rasterio scipy scikit-image`"
-        )
-        st.info("💡 For quick testing, use Demo Mode instead.")
+    # Check if dependencies are available
+    if not LIVE_MODE_READY:
+        st.error("❌ **Live mode requires additional dependencies**")
+        st.markdown("**Missing libraries:**")
+        for lib in MISSING_HEAVY_LIBS:
+            st.code(f"❌ {lib}", language="text")
+        
+        st.divider()
+        st.markdown("### 📦 Installation Instructions")
+        st.code("pip install -r requirements_core.txt -r requirements_geo.txt", language="bash")
+        
+        st.divider()
+        st.info("💡 **Tip:** Use **Demo Mode** to explore features without installing heavy dependencies")
         st.stop()
+    
+    if sum(SERVICES_AVAILABLE.values()) < 3:
+        st.warning(
+            "⚠️ Some services unavailable. Live mode functionality may be limited."
+        )
     
     # Step-by-step wizard
     tab1, tab2, tab3, tab4 = st.tabs(["1️⃣ AOI", "2️⃣ Parameters", "3️⃣ Run", "4️⃣ Results"])
@@ -311,7 +362,11 @@ else:
         else:
             st.info(f"✅ AOI defined | Date range: {start_date} to {end_date}")
             
-            if st.button("🚀 Run Full Pipeline", type="primary"):
+            # Check dependencies before running
+            run_button_disabled = not LIVE_MODE_READY
+            run_button_help = None if LIVE_MODE_READY else "Install requirements_geo.txt to enable live mode"
+            
+            if st.button("🚀 Run Full Pipeline", type="primary", disabled=run_button_disabled, help=run_button_help):
                 progress_bar = st.progress(0)
                 status = st.empty()
                 
