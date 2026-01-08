@@ -1,0 +1,18 @@
+# Basic requirements for Streamlit demo
+streamlit>=1.28.0
+numpy>=1.24.0
+pandas>=2.0.0
+matplotlib>=3.7.0
+pyyaml>=6.0
+plotly>=5.17.0
+pillow>=10.0.0
+python-dotenv>=1.0.0
+
+# Core geo viz
+geopandas>=0.14.0
+shapely>=2.0.0
+folium>=0.14.0
+streamlit-folium>=0.15.0
+
+# Minimal ML
+scikit-learn>=1.3.0

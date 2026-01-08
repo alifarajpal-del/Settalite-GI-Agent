@@ -9,6 +9,8 @@ import plotly.express as px
 import pandas as pd
 from datetime import datetime, timedelta
 import numpy as np
+import json
+import pydeck as pdk
 
 # إضافة المسار للوحدات
 sys.path.append(str(Path(__file__).parent.parent))
@@ -24,6 +26,20 @@ try:
 except ImportError as e:
     st.error(f"خطأ في تحميل الوحدات: {e}")
     st.stop()
+
+try:
+    from src.config.demo_mode import DEMO_MODE, MOCK_DATA_SOURCE, MOCK_SERVICE
+except ImportError:
+    DEMO_MODE = False
+    MOCK_DATA_SOURCE = False
+    MOCK_SERVICE = None
+
+if 'demo_mode' not in st.session_state:
+    st.session_state['demo_mode'] = DEMO_MODE
+
+# استخدم القيمة من حالة الجلسة بدلاً من الثابت
+ACTIVE_DEMO_MODE = st.session_state.get('demo_mode', DEMO_MODE)
+USE_MOCK_DATA = bool(ACTIVE_DEMO_MODE and MOCK_DATA_SOURCE and MOCK_SERVICE)
 
 # إعداد الصفحة
 st.set_page_config(
@@ -72,6 +88,32 @@ st.markdown("""
 with st.sidebar:
     st.title("مركز التحكم")
     
+    # إعدادات النظام وتبديل الوضع
+    st.divider()
+    st.subheader("⚙️ إعدادات النظام")
+    
+    # تهيئة حالة الوضع
+    if 'demo_mode' not in st.session_state:
+        st.session_state['demo_mode'] = DEMO_MODE
+    
+    # زر تبديل الوضع
+    if st.button("🔄 تبديل الوضع (تجريبي/فعلي)", type="secondary", use_container_width=True):
+        st.session_state['demo_mode'] = not st.session_state.get('demo_mode', True)
+        st.rerun()
+    
+    # عرض حالة النظام
+    current_demo_mode = st.session_state.get('demo_mode', True)
+    status_color = "🟢" if current_demo_mode else "🔴"
+    st.write(f"{status_color} **الوضع الحالي:** {'تجريبي' if current_demo_mode else 'فعلي'}")
+    
+    if not current_demo_mode:
+        st.warning("⚠️ الوضع الفعلي يتطلب:")
+        st.write("- 🔑 مفاتيح API للأقمار الصناعية")
+        st.write("- ⏳ اتصال بالإنترنت")
+        st.write("- 📡 بيانات حقيقية")
+    
+    st.divider()
+    
     tab = st.radio(
         "اختر المهمة:",
         ["🎯 إدارة المنطقة", "🛰️ جلب البيانات", "🔍 تحليل متقدم", "📊 عرض النتائج", "📤 تصدير البيانات"],
@@ -82,6 +124,8 @@ with st.sidebar:
         st.info(f"الإصدار: {config['app']['version']}")
         st.info(f"الدقة: {config['satellite']['providers']['sentinel']['resolution']}م")
         st.info("الحالة: ✅ جاهز")
+        if USE_MOCK_DATA:
+            st.warning("وضع تجريبي نشط - يتم استخدام بيانات تجريبية")
 
 # علامة تبويب إدارة المنطقة
 if tab == "🎯 إدارة المنطقة":
@@ -123,6 +167,10 @@ if tab == "🎯 إدارة المنطقة":
                 geojson_data = json.load(geojson_file)
                 st.session_state.aoi_geometry = geojson_data
                 st.success("✅ تم تحميل ملف GeoJSON!")
+
+        if USE_MOCK_DATA and st.button("تحميل AOI تجريبية", use_container_width=True):
+            st.session_state.aoi_geometry = MOCK_SERVICE.create_mock_aoi()
+            st.success("تم إنشاء AOI تجريبية بناءً على الإعدادات الافتراضية")
     
     with col2:
         st.subheader("معلومات AOI")
@@ -170,22 +218,29 @@ elif tab == "🛰️ جلب البيانات":
         st.subheader("معاينة الطلب")
         st.info(f"**القمر الصناعي:** {satellite_source}")
         st.info(f"**الفترة:** {start_date} إلى {end_date}")
+        if USE_MOCK_DATA:
+            st.warning("سيتم استخدام بيانات تجريبية ثابتة في هذا الوضع")
         
         if st.button("🚀 جلب البيانات", type="primary", use_container_width=True):
             with st.spinner("جاري جلب البيانات..."):
                 try:
                     logger = setup_logger(config['paths']['outputs'])
-                    satellite_service = SatelliteService(config, logger)
-                    
-                    data = satellite_service.download_sentinel_data(
-                        st.session_state.aoi_geometry,
-                        start_date.strftime("%Y-%m-%d"),
-                        end_date.strftime("%Y-%m-%d"),
-                        max_cloud_cover
-                    )
+                    if USE_MOCK_DATA:
+                        data = MOCK_SERVICE.generate_mock_satellite_data()
+                    else:
+                        satellite_service = SatelliteService(config, logger)
+                        data = satellite_service.download_sentinel_data(
+                            st.session_state.aoi_geometry,
+                            start_date.strftime("%Y-%m-%d"),
+                            end_date.strftime("%Y-%m-%d"),
+                            max_cloud_cover
+                        )
                     
                     st.session_state.run_data['satellite_data'] = data
-                    st.success("✅ تم جلب البيانات بنجاح!")
+                    if USE_MOCK_DATA:
+                        st.success("تم تحميل البيانات التجريبية بنجاح!")
+                    else:
+                        st.success("✅ تم جلب البيانات بنجاح!")
                     
                 except Exception as e:
                     st.error(f"خطأ: {str(e)}")
@@ -384,6 +439,270 @@ elif tab == "📤 تصدير البيانات":
                 
             except Exception as e:
                 st.error(f"خطأ في التصدير: {str(e)}")
+
+# ============================================================================
+# قسم العرض التجريبي (يظهر فقط في DEMO_MODE)
+# ============================================================================
+if USE_MOCK_DATA:
+    st.sidebar.divider()
+    st.sidebar.subheader("🔄 أدوات العرض التجريبي")
+    
+    if st.sidebar.button("🔄 توليد بيانات وهمية جديدة", use_container_width=True):
+        st.session_state['mock_data'] = MOCK_SERVICE.generate_mock_detections()
+        st.session_state['mock_geojson'] = MOCK_SERVICE.create_mock_geojson_features()
+        st.rerun()
+    
+    if 'mock_data' not in st.session_state:
+        st.session_state['mock_data'] = MOCK_SERVICE.generate_mock_detections()
+        st.session_state['mock_geojson'] = MOCK_SERVICE.create_mock_geojson_features()
+    
+    st.divider()
+    st.subheader("📊 العرض التجريبي - بيانات وهمية")
+    
+    col_info, col_stats = st.columns([2, 1])
+    
+    with col_info:
+        st.info(
+            """
+            **معلومات الوضع التجريبي:**
+            - جميع البيانات المعروضة هي بيانات وهمية للاختبار
+            - تم توليد 12 موقعاً افتراضياً في منطقة القاهرة التاريخية
+            - انقر على 'توليد بيانات وهمية جديدة' لأخذ عينة مختلفة
+            """
+        )
+    
+    with col_stats:
+        st.metric("عدد المواقع المكتشفة", len(st.session_state['mock_data']))
+        st.metric(
+            "متوسط مستوى الثقة",
+            f"{st.session_state['mock_data']['الثقة (%)'].mean():.1f}%"
+        )
+        st.metric(
+            "المواقع عالية الأولوية",
+            int(
+                len(
+                    st.session_state['mock_data'][
+                        st.session_state['mock_data']['الأولوية (EN)'] == 'high'
+                    ]
+                )
+            )
+        )
+    
+    st.subheader("🗺️ الخريطة التفاعلية للمواقع المكتشفة")
+    map_data = st.session_state['mock_data'].copy()
+    map_data.rename(columns={'خط العرض': 'lat', 'خط الطول': 'lon'}, inplace=True)
+    priority_colors = {'high': [220, 20, 60], 'medium': [255, 140, 0], 'low': [34, 139, 34]}
+    map_data['color_rgb'] = map_data['الأولوية (EN)'].map(priority_colors)
+    map_data['color_rgb'] = map_data['color_rgb'].apply(
+        lambda color: color if isinstance(color, list) else [0, 102, 204]
+    )
+    map_data['size'] = np.clip(map_data['المساحة (م²)'] / 15.0, 80, 400)
+    mean_lat = map_data['lat'].mean()
+    mean_lon = map_data['lon'].mean()
+    layer = pdk.Layer(
+        'ScatterplotLayer',
+        data=map_data,
+        get_position='[lon, lat]',
+        get_radius='size',
+        get_fill_color='color_rgb',
+        pickable=True,
+        opacity=0.7
+    )
+    view_state = pdk.ViewState(latitude=mean_lat, longitude=mean_lon, zoom=13, pitch=30)
+    st.pydeck_chart(pdk.Deck(map_style='mapbox://styles/mapbox/light-v9', initial_view_state=view_state, layers=[layer]))
+    
+    st.subheader("📋 جدول البيانات التفصيلي")
+    st.dataframe(
+        st.session_state['mock_data'],
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "ID الموقع": st.column_config.TextColumn(width="medium"),
+            "خط الطول": st.column_config.NumberColumn(format="%.6f"),
+            "خط العرض": st.column_config.NumberColumn(format="%.6f"),
+            "الثقة (%)": st.column_config.ProgressColumn(format="%.1f%%", min_value=0, max_value=100),
+            "المساحة (م²)": st.column_config.NumberColumn(format="%d"),
+        }
+    )
+    
+    col_dl1, col_dl2, col_dl3 = st.columns(3)
+    
+    with col_dl1:
+        csv_data = st.session_state['mock_data'].to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 تحميل البيانات (CSV)",
+            data=csv_data,
+            file_name=f"heritage_detections_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+    
+    with col_dl2:
+        json_data = json.dumps(
+            st.session_state['mock_geojson'],
+            ensure_ascii=False,
+            indent=2
+        ).encode('utf-8')
+        st.download_button(
+            label="📥 تحميل البيانات (GeoJSON)",
+            data=json_data,
+            file_name=f"heritage_detections_{datetime.now().strftime('%Y%m%d_%H%M%S')}.geojson",
+            mime="application/json",
+            use_container_width=True
+        )
+    
+    with col_dl3:
+        if st.button("🖨️ إنشاء تقرير سريع", use_container_width=True):
+            outputs_dir = Path(config['paths']['outputs'])
+            outputs_dir.mkdir(parents=True, exist_ok=True)
+            report_path = outputs_dir / f"demo_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+            report_lines = [
+                "Heritage Sentinel Pro - Demo Report",
+                f"Total detections: {len(st.session_state['mock_data'])}",
+                f"Average confidence: {st.session_state['mock_data']['الثقة (%)'].mean():.1f}%",
+                f"High priority: {int(len(st.session_state['mock_data'][st.session_state['mock_data']['الأولوية (EN)'] == 'high']))}",
+            ]
+            report_path.write_text("\n".join(report_lines), encoding='utf-8')
+            st.success(f"تم إنشاء تقرير تجريبي: {report_path.name}")
+    
+    st.divider()
+    st.caption("🔬 هذا قسم العرض التجريبي. للتحول إلى الوضع الفعلي قم بتعيين DEMO_MODE = False في الإعدادات.")
+
+# ============================================================================
+# قسم الوضع الفعلي
+# ============================================================================
+current_demo_mode = st.session_state.get('demo_mode', DEMO_MODE)
+
+if not current_demo_mode and st.session_state.get('live_mode_initialized', False):
+    st.divider()
+    st.header("🛰️ الوضع الفعلي - تحليل حقيقي")
+    
+    # عرض حالة الخدمات
+    st.subheader("حالة الخدمات")
+    
+    if 'live_services_status' in st.session_state:
+        cols = st.columns(len(st.session_state.live_services_status))
+        for idx, (service_name, status) in enumerate(st.session_state.live_services_status.items()):
+            with cols[idx]:
+                st.write(status)
+                st.caption(service_name.replace('_', ' ').title())
+    
+    # معلومات AOI
+    if st.session_state.get('aoi_geometry'):
+        st.info("✅ منطقة الاهتمام (AOI) محددة وجاهزة للتحليل")
+    else:
+        st.warning("⚠️ يرجى تحديد منطقة الاهتمام (AOI) أولاً من تبويب 'إدارة المنطقة'")
+    
+    # تشغيل تحليل حقيقي
+    if st.button("🚀 تشغيل تحليل حقيقي", type="primary", disabled=not st.session_state.get('aoi_geometry')):
+        with st.spinner("جاري التحليل الحقيقي... قد يستغرق عدة دقائق"):
+            try:
+                # استخدام خدمة الوضع الفعلي
+                from src.services.live_mode_service import LiveModeService
+                live_service = LiveModeService()
+                
+                # تهيئة الخدمات
+                services_status = live_service.initialize_services()
+                st.session_state.live_services_status = services_status
+                
+                # تشغيل خط الأنابيب
+                results = live_service.run_full_pipeline(
+                    aoi_geometry=st.session_state.get('aoi_geometry'),
+                    start_date=(datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d"),
+                    end_date=datetime.now().strftime("%Y-%m-%d")
+                )
+                
+                # عرض النتائج
+                if results['status'] == 'completed':
+                    st.success("✅ اكتمل التحليل الحقيقي!")
+                    
+                    # عرض النتائج
+                    if results['detections']:
+                        detections = results['detections']
+                        
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("المواقع المكتشفة", detections.get('total_detections', 0))
+                        with col2:
+                            high_conf = detections.get('statistics', {}).get('high_confidence_detections', 0)
+                            st.metric("عالية الثقة", high_conf)
+                        with col3:
+                            success_rate = len([s for s in results['steps'].values() 
+                                              if s['status'] == 'success']) / max(len(results['steps']), 1)
+                            st.metric("معدل النجاح", f"{success_rate*100:.1f}%")
+                        
+                        # حفظ النتائج
+                        st.session_state.coordinates = detections
+                        
+                        # عرض البيانات
+                        if not detections['clusters'].empty:
+                            st.subheader("📊 المواقع المكتشفة")
+                            st.dataframe(
+                                detections['clusters'][
+                                    ['cluster_id', 'centroid_lat', 'centroid_lon', 
+                                     'confidence', 'area_m2']
+                                ].round(6),
+                                use_container_width=True
+                            )
+                    
+                    # عرض تفاصيل الخطوات
+                    with st.expander("📋 تفاصيل خطوات التنفيذ"):
+                        for step_name, step_info in results['steps'].items():
+                            status_icon = "✅" if step_info['status'] == 'success' else "⚠️" if step_info['status'] == 'warning' else "❌"
+                            st.write(f"{status_icon} **{step_name}:** {step_info['message']}")
+                
+                else:
+                    st.error(f"❌ فشل التحليل: {results.get('error', 'سبب غير معروف')}")
+                    
+            except Exception as e:
+                st.error(f"❌ خطأ في الوضع الفعلي: {str(e)}")
+                st.info("💡 النصيحة: يمكنك الرجوع للوضع التجريبي أو التحقق من إعدادات API")
+    
+    # زر العودة للوضع التجريبي
+    st.divider()
+    if st.button("↩️ العودة للوضع التجريبي"):
+        st.session_state['demo_mode'] = True
+        st.rerun()
+
+elif not current_demo_mode:
+    # تهيئة الوضع الفعلي لأول مرة
+    st.divider()
+    st.warning("⚠️ الوضع الفعلي يحتاج تهيئة")
+    
+    st.info("""
+    **متطلبات الوضع الفعلي:**
+    - ✓ جميع الخدمات الأساسية مثبتة
+    - ⚠️ مفاتيح API للأقمار الصناعية (اختياري - سيتم استخدام بيانات وهمية كبديل)
+    - ✓ اتصال بالإنترنت
+    """)
+    
+    if st.button("🛠️ تهيئة الوضع الفعلي", type="primary"):
+        with st.spinner("جاري تهيئة الخدمات الفعلية..."):
+            try:
+                from src.services.live_mode_service import LiveModeService
+                live_service = LiveModeService()
+                services_status = live_service.initialize_services()
+                
+                st.session_state.live_services_status = services_status
+                st.session_state.live_mode_initialized = True
+                
+                st.success("✅ تم تهيئة الوضع الفعلي بنجاح!")
+                
+                # عرض حالة الخدمات
+                st.subheader("حالة الخدمات:")
+                for service_name, status in services_status.items():
+                    st.write(f"{status} {service_name}")
+                
+                st.rerun()
+                
+            except Exception as e:
+                st.error(f"❌ فشل التهيئة: {str(e)}")
+                st.info("""
+                **الحلول المقترحة:**
+                1. تأكد من وجود جميع ملفات الخدمات في مجلد `src/services/`
+                2. تحقق من ملفات التكوين في `config/`
+                3. جرب تثبيت المكتبات المطلوبة: `pip install scikit-learn rasterio`
+                """)
 
 # تذييل الصفحة
 st.divider()
