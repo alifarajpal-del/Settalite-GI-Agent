@@ -14,12 +14,40 @@ Advanced AI-powered system for detecting and precisely locating archaeological s
 
 ## 🚀 Quick Start
 
+### Demo Mode (Lightweight - Recommended for Testing)
+
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# Install core dependencies only
+pip install -r requirements_core.txt
 
 # Run the application
-python run.py
+streamlit run run.py
+```
+
+Demo mode works with simulated data - no API keys or heavy libraries needed!
+
+### Live Mode (Full Pipeline - Requires Geo Libraries)
+
+```bash
+# Install core + geo dependencies
+pip install -r requirements_core.txt -r requirements_geo.txt
+
+# Configure API keys (optional)
+cp config/config.yaml.example config/config.yaml
+# Edit config.yaml with your credentials
+
+# Run the application
+streamlit run run.py
+```
+
+### Verify Installation
+
+```bash
+# Windows
+.\scripts\verify.ps1
+
+# Linux/Mac
+python scripts/smoke_test.py && python test_integration.py
 ```
 
 ## 📖 Documentation

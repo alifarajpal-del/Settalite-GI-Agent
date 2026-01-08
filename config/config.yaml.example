@@ -1,0 +1,35 @@
+# Heritage Sentinel Pro - Configuration Example
+# Copy this file to config.yaml and adjust values
+
+app:
+  name: "Heritage Sentinel Pro"
+  version: "1.0.0"
+  
+satellite:
+  providers:
+    sentinel:
+      resolution: 10  # meters
+      max_cloud_cover: 30  # percentage
+    
+processing:
+  coordinate_extraction:
+    min_anomaly_area: 100  # square meters
+    confidence_threshold: 0.7  # 0.0 to 1.0
+    cluster_distance: 50  # meters
+  
+  spectral_indices:
+    - NDVI
+    - NDWI
+    - MSAVI
+    
+output:
+  formats:
+    - geojson
+    - csv
+    - excel
+  
+paths:
+  outputs: "outputs"
+  exports: "exports"
+  data: "data"
+  logs: "logs"
