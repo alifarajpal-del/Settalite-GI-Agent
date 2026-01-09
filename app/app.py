@@ -57,6 +57,15 @@ TRANSLATIONS = {
         'footer': "Results are statistical predictions and require expert field verification",
         'theme_note': "Theme changes require page refresh",
         'demo_note': "Demo mode uses simulated data - no API keys required",
+        'model_mode_label': "Detection Model",
+        'model_classic': "Classic (Anomaly Detection)",
+        'model_ensemble': "Ensemble (ML Rules)",
+        'model_hybrid': "Hybrid (Combined)",
+        'model_info_title': "Model Information",
+        'models_active': "Active Models",
+        'ml_available': "ML Models Available",
+        'ml_not_installed': "ML models not installed",
+        'install_ml_hint': "Install with: pip install scikit-learn",
     },
     'ar': {
         'title': "هيريتج سنتينل برو",
@@ -96,6 +105,15 @@ TRANSLATIONS = {
         'footer': "النتائج هي تنبؤات إحصائية وتتطلب التحقق الميداني من قبل الخبراء",
         'theme_note': "تتطلب تغييرات السمة تحديث الصفحة",
         'demo_note': "يستخدم الوضع التجريبي بيانات محاكاة - لا حاجة لمفاتيح API",
+        'model_mode_label': "نموذج الكشف",
+        'model_classic': "كلاسيكي (كشف الشذوذ)",
+        'model_ensemble': "مجموعة (قواعد ذكاء)",
+        'model_hybrid': "هجين (مدمج)",
+        'model_info_title': "معلومات النموذج",
+        'models_active': "النماذج النشطة",
+        'ml_available': "نماذج الذكاء متاحة",
+        'ml_not_installed': "نماذج الذكاء غير مثبتة",
+        'install_ml_hint': "ثبت مع: pip install scikit-learn",
     }
 }
 
@@ -106,6 +124,15 @@ if 'last_result' not in st.session_state:
     st.session_state.last_result = None
 if 'last_request_params' not in st.session_state:
     st.session_state.last_request_params = None
+if 'model_mode' not in st.session_state:
+    st.session_state.model_mode = 'classic'
+
+# Check ML availability
+try:
+    from src.models import HeritageDetectionEnsemble
+    ML_AVAILABLE = True
+except ImportError:
+    ML_AVAILABLE = False
 
 # === Page Configuration ===
 st.set_page_config(
@@ -445,6 +472,41 @@ def main():
             st.caption("Requires heavy dependencies and API keys")
         
         st.divider()
+        
+        # Model Mode Selection
+        st.header(f"🤖 {labels['model_mode_label']}")
+        
+        model_options = {
+            'classic': labels['model_classic'],
+            'ensemble': labels['model_ensemble'],
+            'hybrid': labels['model_hybrid']
+        }
+        
+        selected_model = st.radio(
+            "Select detection model:",
+            options=list(model_options.keys()),
+            format_func=lambda x: model_options[x],
+            index=list(model_options.keys()).index(st.session_state.model_mode)
+        )
+        
+        if selected_model != st.session_state.model_mode:
+            st.session_state.model_mode = selected_model
+        
+        # Show model information
+        with st.expander(f"ℹ️ {labels['model_info_title']}", expanded=False):
+            if ML_AVAILABLE:
+                st.success(f"✅ {labels['ml_available']}")
+                st.markdown(f"**{labels['models_active']}:**")
+                st.markdown("- Isolation Forest")
+                st.markdown("- Random Forest")
+                st.markdown("- One-Class SVM")
+                st.markdown("- Heritage Rules Engine")
+            else:
+                st.warning(f"⚠️ {labels['ml_not_installed']}")
+                st.info(labels['install_ml_hint'])
+                st.caption("Classic mode still works without ML extras")
+        
+        st.divider()
         st.caption(labels['theme_note'])
     
     # === Main Title ===
@@ -487,6 +549,7 @@ def main():
                 start_date=(datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d'),
                 end_date=datetime.now().strftime('%Y-%m-%d'),
                 mode='demo' if is_demo else 'live',
+                model_mode=st.session_state.model_mode,
                 max_cloud_cover=30,
                 contamination=0.1,
                 export_formats=['geojson', 'csv'],

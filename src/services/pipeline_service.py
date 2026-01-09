@@ -28,6 +28,14 @@ from src.services.detection_service import AnomalyDetectionService
 from src.services.coordinate_extractor import CoordinateExtractor
 from src.services.export_service import ExportService
 
+# Import ML models and features (optional)
+try:
+    from src.models import HeritageDetectionEnsemble
+    from src.ml import extract_features
+    ML_MODELS_AVAILABLE = True
+except ImportError:
+    ML_MODELS_AVAILABLE = False
+
 # Import error types
 from src.utils.dependency_errors import (
     DependencyMissingError,
@@ -60,6 +68,7 @@ class PipelineRequest:
     max_cloud_cover: int = 30
     anomaly_algorithm: str = 'isolation_forest'
     contamination: float = 0.1
+    model_mode: str = 'classic'  # 'classic', 'ensemble', or 'hybrid'
     export_formats: List[str] = field(default_factory=lambda: ['geojson', 'csv'])
     output_dir: str = 'outputs'
     output_basename: str = field(default_factory=lambda: f"results_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
@@ -176,6 +185,12 @@ class PipelineService:
         if self._export_service is None:
             self._export_service = ExportService(self.config, self.logger)
         return self._export_service
+    
+    def _get_ensemble(self):
+        """Lazy initialization of HeritageDetectionEnsemble."""
+        if self._ensemble is None and ML_MODELS_AVAILABLE:
+            self._ensemble = HeritageDetectionEnsemble()
+        return self._ensemble
     
     def run(self, request: PipelineRequest) -> PipelineResult:
         """
@@ -399,6 +414,90 @@ class PipelineService:
             self.logger.error(error_msg)
             result.errors.append(error_msg)
             return result
+        
+        # ============================================================
+        # STEP 4.5: APPLY ML MODELS (if requested)
+        # ============================================================
+        if request.model_mode in ['ensemble', 'hybrid'] and gdf is not None and not gdf.empty:
+            try:
+                self.logger.info("STEP 4.5: Applying ML ensemble scoring...")
+                
+                # Check if ML models available
+                if not ML_MODELS_AVAILABLE:
+                    warning_msg = "ML models requested but not available (sklearn not installed)"
+                    self.logger.warning(warning_msg)
+                    result.warnings.append(warning_msg)
+                    result.stats['ensemble_available'] = False
+                else:
+                    ensemble = self._get_ensemble()
+                    if ensemble is None:
+                        result.warnings.append("Could not initialize ensemble model")
+                        result.stats['ensemble_available'] = False
+                    else:
+                        result.stats['ensemble_available'] = True
+                        feature_defaults_count = 0
+                        
+                        # Process each site
+                        for idx in gdf.index:
+                            site_row = gdf.loc[idx]
+                            
+                            # Extract features
+                            features = extract_features(
+                                site_row=site_row.to_dict() if hasattr(site_row, 'to_dict') else {},
+                                indices_data=indices if indices else None,
+                                geometry=site_row.get('geometry') if hasattr(site_row, 'get') else None
+                            )
+                            
+                            # Count default features
+                            if features.get('texture', 0) == 0:
+                                feature_defaults_count += 1
+                            
+                            # Get ensemble score
+                            ensemble_score = ensemble.apply_heritage_rules(features)
+                            
+                            # Clamp to [0, 1]
+                            ensemble_score = max(0.0, min(1.0, ensemble_score))
+                            
+                            # Get classic confidence (if exists)
+                            classic_conf = site_row.get('confidence', 0.75) if hasattr(site_row, 'get') else 0.75
+                            
+                            # Apply confidence logic based on mode
+                            if request.model_mode == 'ensemble':
+                                # Pure ensemble mode
+                                new_confidence = ensemble_score * 100
+                            else:  # hybrid
+                                # Combine classic + ensemble
+                                new_confidence = 0.6 * classic_conf + 0.4 * (ensemble_score * 100)
+                            
+                            # Update confidence
+                            gdf.at[idx, 'confidence'] = new_confidence
+                            
+                            # Update priority based on new confidence
+                            if new_confidence >= 85:
+                                priority = 'high'
+                            elif new_confidence >= 70:
+                                priority = 'medium'
+                            else:
+                                priority = 'low'
+                            
+                            # Add/update priority column
+                            if 'priority' in gdf.columns:
+                                gdf.at[idx, 'priority'] = priority
+                        
+                        result.stats['feature_defaults_used_count'] = feature_defaults_count
+                        result.stats['model_mode'] = request.model_mode
+                        
+                        self.logger.info(f"✓ Applied {request.model_mode} mode to {len(gdf)} sites")
+                        self.logger.info(f"  Feature defaults used: {feature_defaults_count}")
+            
+            except Exception as e:
+                error_msg = f"ML model application failed: {type(e).__name__}: {str(e)}"
+                self.logger.warning(error_msg)
+                result.warnings.append(error_msg)
+        else:
+            # Classic mode or no data
+            result.stats['model_mode'] = request.model_mode
+            result.stats['ensemble_available'] = ML_MODELS_AVAILABLE
         
         # ============================================================
         # STEP 5: EXPORT (Save Results)
