@@ -42,6 +42,9 @@ from src.utils.coords_parser import parse_coords
 try:
     from src.services.pipeline_service import PipelineService, PipelineRequest
     from src.services.mock_data_service import MockDataService
+    from src.config import load_config
+    import logging
+    import inspect
     PIPELINE_AVAILABLE = True
 except ImportError as e:
     PIPELINE_AVAILABLE = False
@@ -165,6 +168,43 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
+#===========================================
+# HELPER FUNCTIONS
+#===========================================
+def get_pipeline_service():
+    """
+    Get or create PipelineService instance with proper config and logger.
+    Uses session state to avoid recreating on every Streamlit rerun.
+    Smart signature detection to handle API changes.
+    """
+    if "pipeline" not in st.session_state:
+        if not PIPELINE_AVAILABLE:
+            return None
+        
+        try:
+            # Load config and setup logger
+            config = load_config()
+            logger = logging.getLogger("heritage")
+            
+            # Inspect PipelineService signature to build kwargs dynamically
+            sig = inspect.signature(PipelineService.__init__)
+            kwargs = {}
+            
+            if "config" in sig.parameters:
+                kwargs["config"] = config
+            if "logger" in sig.parameters:
+                kwargs["logger"] = logger
+            
+            # Create and cache the pipeline service
+            st.session_state.pipeline = PipelineService(**kwargs)
+            
+        except Exception as e:
+            st.error(f"Failed to initialize pipeline service: {e}")
+            return None
+    
+    return st.session_state.pipeline
+
 
 #===========================================
 # LANDING PAGE
@@ -455,8 +495,12 @@ def run_analysis(target, radius, months_back, data_source, model_mode, labels):
             progress_bar.progress(progress)
             status_text.info(f"⏳ {message}")
         
+        # Get pipeline service (cached in session state)
+        pipeline = get_pipeline_service()
+        if not pipeline:
+            raise Exception("Pipeline service initialization failed")
+        
         # Run pipeline
-        pipeline = PipelineService()
         result = pipeline.run(request)
         
         # Store result
