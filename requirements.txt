@@ -23,7 +23,7 @@ fiona>=1.9.0
 pyproj>=3.6.0
 
 # مكتبات أقمار صناعية متقدمة (للاستخدام المستقبلي - اختيارية)
-# rasterio>=1.3.0
+rasterio>=1.3.0
 # sentinelhub>=3.9.0
 # eoreader>=0.28.0
 # sentinelsat>=1.1.0
