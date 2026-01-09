@@ -653,11 +653,46 @@ class PipelineService:
             result.stats['ensemble_available'] = ML_MODELS_AVAILABLE
         
         # ============================================================
-        # STEP 4.8: NORMALIZE SCHEMA (before export)
+        # STEP 4.8: ARCHAEOLOGY SCORING (PROMPT 5)
+        # ============================================================
+        if gdf is not None and not gdf.empty and manifest.can_compute_likelihood():
+            try:
+                self.logger.info("STEP 4.8: Computing archaeology scores (PROMPT 5)...")
+                
+                from src.services.archaeology_scorer import ArchaeologyScorer, ArchaeologyScoringConfig
+                
+                scoring_config = ArchaeologyScoringConfig()
+                scorer = ArchaeologyScorer(scoring_config, self.logger)
+                
+                # Score sites
+                gdf = scorer.score_sites(
+                    gdf=gdf,
+                    indices=indices,
+                    anomaly_map=anomaly_map,
+                    aoi_geometry=request.aoi_geometry
+                )
+                
+                result.dataframe = gdf
+                result.stats['archaeology_scored'] = True
+                self.logger.info("✓ Archaeology scores computed (real data only)")
+                
+            except Exception as e:
+                error_msg = f"Archaeology scoring failed (non-critical): {str(e)}"
+                self.logger.warning(error_msg)
+                result.warnings.append(error_msg)
+                result.stats['archaeology_scored'] = False
+        else:
+            # Demo mode: scores not computed (PROMPT 2 compliance)
+            result.stats['archaeology_scored'] = False
+            if manifest.status.value == 'DEMO_MODE':
+                self.logger.info("Demo mode: archaeology scores not computed (PROMPT 2)")
+        
+        # ============================================================
+        # STEP 4.9: NORMALIZE SCHEMA (before export)
         # ============================================================
         if gdf is not None and not gdf.empty:
             try:
-                self.logger.info("STEP 4.8: Normalizing schema...")
+                self.logger.info("STEP 4.9: Normalizing schema...")
                 
                 # Normalize to canonical schema
                 gdf_normalized = normalize_detections(gdf)
@@ -677,6 +712,29 @@ class PipelineService:
                 result.stats['schema_normalized'] = False
         else:
             result.stats['schema_normalized'] = False
+        
+        # ============================================================
+        # STEP 4.95: GROUND TRUTH EVALUATION (PROMPT 6)
+        # ============================================================
+        if gdf is not None and not gdf.empty:
+            try:
+                # Try to load and evaluate against ground truth (optional)
+                from src.services.ground_truth_evaluator import GroundTruthEvaluator
+                
+                evaluator = GroundTruthEvaluator(self.logger)
+                # Look for ground truth in config or workspace
+                ground_truth_path = self.config.get('ground_truth_path')
+                
+                if ground_truth_path:
+                    if evaluator.load_ground_truth(ground_truth_path):
+                        eval_result = evaluator.evaluate(gdf)
+                        result.metadata['ground_truth_evaluation'] = eval_result
+                        result.stats['evaluation_status'] = eval_result.get('status', 'FAILED')
+                        self.logger.info(f"Ground truth evaluation: {eval_result.get('metrics', {})}")
+                
+            except Exception as e:
+                # Non-critical - ground truth evaluation is optional
+                self.logger.debug(f"Ground truth evaluation not available: {e}")
         
         # ============================================================
         # STEP 5: EXPORT (Save Results)
