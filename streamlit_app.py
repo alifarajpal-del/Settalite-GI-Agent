@@ -10,11 +10,8 @@ project_root = Path(__file__).parent.absolute()
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-# Now import and run the app
-if __name__ == "__main__":
-    # Direct execution by streamlit
-    from app.app import main
-    main()
-else:
-    # Import as module
-    from app import app
+# Import the app module - Streamlit will execute it automatically
+from app.app import main
+
+# Call main() immediately for Streamlit Cloud
+main()
