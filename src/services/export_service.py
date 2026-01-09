@@ -1,11 +1,21 @@
 """
-خدمة التصدير
+خدمة التصدير - Export Service
+Handles exporting detections to multiple formats with validation
 """
 import os
 import geopandas as gpd
+import pandas as pd
 from typing import List, Dict
 import warnings
+import logging
+
+# Import GeoJSON validator
+from src.utils.geojson_validator import create_valid_geojson, quick_geojson_test, get_geojson_statistics
+
 warnings.filterwarnings('ignore')
+
+logger = logging.getLogger(__name__)
+
 
 class ExportService:
     """
@@ -54,7 +64,35 @@ class ExportService:
             try:
                 if fmt.lower() == 'geojson':
                     path = os.path.join(output_dir, f"{base_name}.geojson")
-                    gdf.to_file(path, driver='GeoJSON')
+                    
+                    # Use validated GeoJSON export
+                    # Convert GeoDataFrame to DataFrame (normalizer expects pandas)
+                    df_export = gdf.copy()
+                    if 'geometry' in df_export.columns:
+                        # Extract lat/lon if not present
+                        if 'lat' not in df_export.columns:
+                            df_export['lat'] = df_export.geometry.y
+                        if 'lon' not in df_export.columns:
+                            df_export['lon'] = df_export.geometry.x
+                    
+                    # Create validated GeoJSON
+                    geojson_bytes = create_valid_geojson(df_export)
+                    
+                    # Write to file
+                    with open(path, 'wb') as f:
+                        f.write(geojson_bytes)
+                    
+                    # Quick test
+                    is_valid = quick_geojson_test(geojson_bytes)
+                    if is_valid:
+                        logger.info(f"✓ GeoJSON validation passed")
+                    else:
+                        logger.warning(f"⚠ GeoJSON validation failed - file may not open correctly")
+                    
+                    # Log statistics
+                    stats = get_geojson_statistics(geojson_bytes)
+                    logger.info(f"  Size: {stats['size_kb']} KB, Features: {stats['feature_count']}")
+                    
                     exported['geojson'] = path
                 
                 elif fmt.lower() == 'csv':

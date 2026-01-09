@@ -36,6 +36,9 @@ try:
 except ImportError:
     ML_MODELS_AVAILABLE = False
 
+# Import normalization utilities
+from src.utils.schema_normalizer import normalize_detections
+
 # Import error types
 from src.utils.dependency_errors import (
     DependencyMissingError,
@@ -497,7 +500,35 @@ class PipelineService:
         else:
             # Classic mode or no data
             result.stats['model_mode'] = request.model_mode
+            # Classic mode or no data
+            result.stats['model_mode'] = request.model_mode
             result.stats['ensemble_available'] = ML_MODELS_AVAILABLE
+        
+        # ============================================================
+        # STEP 4.8: NORMALIZE SCHEMA (before export)
+        # ============================================================
+        if gdf is not None and not gdf.empty:
+            try:
+                self.logger.info("STEP 4.8: Normalizing schema...")
+                
+                # Normalize to canonical schema
+                gdf_normalized = normalize_detections(gdf)
+                
+                # Update result with normalized data
+                gdf = gdf_normalized
+                result.dataframe = gdf_normalized
+                result.stats['schema_normalized'] = True
+                
+                self.logger.info(f"✓ Normalized {len(gdf)} detections to canonical schema")
+                
+            except Exception as e:
+                # Non-critical - continue with unnormalized data
+                error_msg = f"Schema normalization failed (non-critical): {type(e).__name__}: {str(e)}"
+                self.logger.warning(error_msg)
+                result.warnings.append(error_msg)
+                result.stats['schema_normalized'] = False
+        else:
+            result.stats['schema_normalized'] = False
         
         # ============================================================
         # STEP 5: EXPORT (Save Results)

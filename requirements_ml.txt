@@ -1,0 +1,52 @@
+# Heritage Sentinel Pro - ML/Advanced Features Requirements
+# Optional dependencies for machine learning and advanced analysis
+#
+# Installation:
+#   pip install -r requirements_ml.txt
+#
+# Note: These are OPTIONAL. The app works without them in "classic" mode.
+# Install only if you need ML-powered detection or benchmark datasets.
+
+# ============================================================
+# Core ML Libraries
+# ============================================================
+scikit-learn>=1.3.0      # Ensemble models, IsolationForest
+numpy>=1.24.0            # Numerical operations (already in main requirements)
+scipy>=1.10.0            # Scientific computing
+
+# ============================================================
+# Image Processing (for feature extraction)
+# ============================================================
+scikit-image>=0.21.0     # Texture analysis, GLCM features
+opencv-python>=4.8.0     # Advanced image processing
+
+# ============================================================
+# Geospatial Advanced Features
+# ============================================================
+rasterio>=1.3.0          # Raster data handling
+fiona>=1.9.0             # Vector data formats
+
+# ============================================================
+# Benchmark Dataset Support
+# ============================================================
+requests>=2.31.0         # HTTP requests for downloading datasets
+pillow>=10.0.0           # Image loading for EuroSAT
+
+# ============================================================
+# Model Persistence
+# ============================================================
+joblib>=1.3.0            # Model serialization (comes with scikit-learn)
+
+# ============================================================
+# Optional: Deep Learning (NOT REQUIRED)
+# ============================================================
+# Uncomment if you want to use deep learning models:
+# tensorflow>=2.13.0
+# torch>=2.0.0
+# torchvision>=0.15.0
+
+# ============================================================
+# Development/Testing (optional)
+# ============================================================
+pytest>=7.4.0            # Unit testing
+pytest-cov>=4.1.0        # Coverage reporting
