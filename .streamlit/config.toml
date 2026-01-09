@@ -19,7 +19,7 @@ font = "sans serif"
 
 [server]
 # Enable CORS for development
-enableCORS = false
+enableCORS = true
 enableXsrfProtection = true
 
 # Run on headless mode (for deployment)
@@ -41,6 +41,3 @@ magicEnabled = true
 
 # Fast rerun on file changes
 fastReruns = true
-
-# Maximum message size (MB)
-maxMessageSize = 200
