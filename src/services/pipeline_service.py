@@ -359,7 +359,7 @@ class PipelineService:
                 # Download real bands (PROMPT 3)
                 band_result = sh_provider.fetch_band_stack(
                     bbox=bbox,
-                    timestamps=[s['datetime'] for s in scenes[:5]],  # Limit to 5 scenes for now
+                    time_range=(start_dt, end_dt),
                     resolution=10  # 10m resolution
                 )
                 
