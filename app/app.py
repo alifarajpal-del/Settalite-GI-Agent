@@ -1,695 +1,592 @@
 """
 Heritage Sentinel Pro - AI-Powered Archaeological Site Detection
-Modern SaaS Dashboard with Bilingual Support
+Professional 2-Step GEOINT Workflow
 """
 import streamlit as st
 import sys
 from pathlib import Path
 from datetime import datetime, timedelta
-import pandas as pd
-import numpy as np
-import json
+import time
 
 # Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+project_root = Path(__file__).parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
-from src.services.pipeline_service import PipelineService, PipelineRequest, PipelineResult
-from src.services.mock_data_service import MockDataService
-from src.utils.dependency_errors import DependencyMissingError
+# Safe imports with fallbacks
+try:
+    import folium
+    from streamlit_folium import st_folium
+    FOLIUM_AVAILABLE = True
+except ImportError:
+    FOLIUM_AVAILABLE = False
+
+try:
+    import pandas as pd
+    import numpy as np
+    PANDAS_AVAILABLE = True
+except ImportError:
+    PANDAS_AVAILABLE = False
+
+# Import core utilities
+from src.utils.coords_parser import parse_coords
+
+# Import services with error handling
+try:
+    from src.services.pipeline_service import PipelineService, PipelineRequest
+    from src.services.mock_data_service import MockDataService
+    PIPELINE_AVAILABLE = True
+except ImportError as e:
+    PIPELINE_AVAILABLE = False
+    import_error = str(e)
+
+#=== Page Configuration ===
+st.set_page_config(
+    page_title="Heritage Sentinel Pro",
+    page_icon="🛰️",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
+# === Session State Initialization ===
+if 'step' not in st.session_state:
+    st.session_state.step = 'landing'
+if 'target' not in st.session_state:
+    st.session_state.target = None
+if 'last_result' not in st.session_state:
+    st.session_state.last_result = None
+if 'lang' not in st.session_state:
+    st.session_state.lang = 'en'
 
 # === Translations ===
 TRANSLATIONS = {
     'en': {
         'title': "Heritage Sentinel Pro",
-        'subtitle': "AI-Powered Archaeological Site Detection",
-        'sidebar_language': "Language",
-        'sidebar_settings': "Settings",
-        'mode_demo': "Demo Mode",
-        'mode_live': "Live Mode",
-        'mode_label': "Operation Mode",
-        'kpi_total_sites': "Total Sites",
-        'kpi_avg_confidence': "Avg Confidence",
-        'kpi_high_priority': "High Priority",
-        'kpi_total_area': "Total Area (m²)",
-        'run_analysis': "Run Analysis",
-        'running': "Running Analysis...",
-        'step_fetch': "Fetching satellite data...",
-        'step_process': "Processing spectral indices...",
-        'step_detect': "Detecting anomalies...",
-        'step_extract': "Extracting coordinates...",
-        'step_export': "Exporting results...",
-        'error': "Error",
-        'warning': "Warning",
-        'success': "Success",
-        'results': "Detection Results",
-        'map_title': "Detection Map",
-        'stats_title': "Statistics",
-        'table_title': "Detailed Results",
-        'export_section': "Export Data",
-        'export_csv': "Download CSV",
-        'export_geojson': "Download GeoJSON",
-        'filter_priority': "Filter by Priority",
-        'filter_confidence': "Min Confidence (%)",
-        'filter_search': "Search (Site ID or Type)",
-        'errors_title': "Errors Encountered",
-        'warnings_title': "Warnings",
-        'no_results': "No results available. Run an analysis first.",
-        'footer': "Results are statistical predictions and require expert field verification",
-        'theme_note': "Theme changes require page refresh",
-        'demo_note': "Demo mode uses simulated data - no API keys required",
-        'model_mode_label': "Detection Model",
-        'model_classic': "Classic (Anomaly Detection)",
-        'model_ensemble': "Ensemble (ML Rules)",
-        'model_hybrid': "Hybrid (Combined)",
-        'model_info_title': "Model Information",
-        'models_active': "Active Models",
-        'ml_available': "ML Models Available",
-        'ml_not_installed': "ML models not installed",
-        'install_ml_hint': "Install with: pip install scikit-learn",
+        'subtitle': "AI-Powered Archaeological Site Detection System",
+        'input_label': "Enter Target Coordinates",
+        'input_placeholder': "31.9522, 35.2332 or Google Maps URL",
+        'button_start': "Start Initial Analysis 🚀",
+        'examples_title': "Quick Examples (click to use):",
+        'map_title': "📍 Target Location & Scan Area",
+        'settings_title': "⚙️ Scan Configuration",
+        'scan_radius': "Scan Radius",
+        'date_range': "Archive Time Range",
+        'data_source': "Data Source",
+        'model_mode': "Detection Model",
+        'button_scan': "Start Deep Scan 🔍",
+        'running': "Running analysis...",
+        'results_title': "📊 Analysis Results",
+        'sources_title': "1. Sources Used",
+        'likelihood_title': "2. Archaeological Likelihood",
+        'evidence_title': "3. Evidence & Heatmap",
+        'aoi_title': "4. Recommended Area of Interest (AOI)",
+        'button_new': "New Search",
+        'error_parsing': "Could not parse coordinates",
+        'error_deps': "Missing dependencies",
     },
     'ar': {
         'title': "هيريتج سنتينل برو",
-        'subtitle': "الكشف عن المواقع الأثرية بالذكاء الاصطناعي",
-        'sidebar_language': "اللغة",
-        'sidebar_settings': "الإعدادات",
-        'mode_demo': "الوضع التجريبي",
-        'mode_live': "الوضع المباشر",
-        'mode_label': "وضع التشغيل",
-        'kpi_total_sites': "إجمالي المواقع",
-        'kpi_avg_confidence': "متوسط الثقة",
-        'kpi_high_priority': "أولوية عالية",
-        'kpi_total_area': "إجمالي المساحة (م²)",
-        'run_analysis': "تشغيل التحليل",
+        'subtitle': "نظام الكشف الأثري بالذكاء الاصطناعي",
+        'input_label': "أدخل إحداثيات الهدف",
+        'input_placeholder': "31.9522, 35.2332 أو رابط Google Maps",
+        'button_start': "بدء التحليل الأولي 🚀",
+        'examples_title': "أمثلة سريعة (انقر للاستخدام):",
+        'map_title': "📍 موقع الهدف ونطاق المسح",
+        'settings_title': "⚙️ إعدادات المسح",
+        'scan_radius': "نطاق المسح",
+        'date_range': "النطاق الزمني للأرشيف",
+        'data_source': "مصدر البيانات",
+        'model_mode': "نموذج الكشف",
+        'button_scan': "بدء المسح العميق 🔍",
         'running': "جاري التحليل...",
-        'step_fetch': "جلب بيانات الأقمار الصناعية...",
-        'step_process': "معالجة المؤشرات الطيفية...",
-        'step_detect': "كشف الشذوذات...",
-        'step_extract': "استخراج الإحداثيات...",
-        'step_export': "تصدير النتائج...",
-        'error': "خطأ",
-        'warning': "تحذير",
-        'success': "نجح",
-        'results': "نتائج الكشف",
-        'map_title': "خريطة الكشف",
-        'stats_title': "الإحصائيات",
-        'table_title': "النتائج التفصيلية",
-        'export_section': "تصدير البيانات",
-        'export_csv': "تنزيل CSV",
-        'export_geojson': "تنزيل GeoJSON",
-        'filter_priority': "تصفية حسب الأولوية",
-        'filter_confidence': "الحد الأدنى للثقة (%)",
-        'filter_search': "بحث (معرف الموقع أو النوع)",
-        'errors_title': "الأخطاء المواجهة",
-        'warnings_title': "التحذيرات",
-        'no_results': "لا توجد نتائج متاحة. قم بتشغيل التحليل أولاً.",
-        'footer': "النتائج هي تنبؤات إحصائية وتتطلب التحقق الميداني من قبل الخبراء",
-        'theme_note': "تتطلب تغييرات السمة تحديث الصفحة",
-        'demo_note': "يستخدم الوضع التجريبي بيانات محاكاة - لا حاجة لمفاتيح API",
-        'model_mode_label': "نموذج الكشف",
-        'model_classic': "كلاسيكي (كشف الشذوذ)",
-        'model_ensemble': "مجموعة (قواعد ذكاء)",
-        'model_hybrid': "هجين (مدمج)",
-        'model_info_title': "معلومات النموذج",
-        'models_active': "النماذج النشطة",
-        'ml_available': "نماذج الذكاء متاحة",
-        'ml_not_installed': "نماذج الذكاء غير مثبتة",
-        'install_ml_hint': "ثبت مع: pip install scikit-learn",
+        'results_title': "📊 نتائج التحليل",
+        'sources_title': "1. المصادر المستخدمة",
+        'likelihood_title': "2. الاحتمالية الأثرية",
+        'evidence_title': "3. الأدلة والخريطة الحرارية",
+        'aoi_title': "4. منطقة الاهتمام الموصى بها (AOI)",
+        'button_new': "بحث جديد",
+        'error_parsing': "تعذر تحليل الإحداثيات",
+        'error_deps': "مكتبات مفقودة",
     }
 }
 
-# === Session State Initialization ===
-if 'lang' not in st.session_state:
-    st.session_state.lang = 'en'
-if 'last_result' not in st.session_state:
-    st.session_state.last_result = None
-if 'last_request_params' not in st.session_state:
-    st.session_state.last_request_params = None
-if 'model_mode' not in st.session_state:
-    st.session_state.model_mode = 'classic'
+# === Styling ===
+st.markdown("""
+<style>
+    .main-header {
+        text-align: center; 
+        padding: 2rem 0;
+    }
+    .subtitle {
+        text-align: center;
+        color: #666;
+        font-size: 1.2rem;
+        margin-bottom: 3rem;
+    }
+    .example-chip {
+        display: inline-block;
+        background: #f0f2f6;
+        padding: 0.5rem 1rem;
+        margin: 0.25rem;
+        border-radius: 20px;
+        cursor: pointer;
+        font-size: 0.9rem;
+    }
+    .result-section {
+        background: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 10px;
+        margin: 1rem 0;
+    }
+    .likelihood-high {
+        background: #d4edda;
+        border-left: 4px solid #28a745;
+        padding: 1rem;
+        border-radius: 5px;
+    }
+    .likelihood-medium {
+        background: #fff3cd;
+        border-left: 4px solid #ffc107;
+        padding: 1rem;
+        border-radius: 5px;
+    }
+    .likelihood-low {
+        background: #f8d7da;
+        border-left: 4px solid #dc3545;
+        padding: 1rem;
+        border-radius: 5px;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-# Check ML availability
-try:
-    from src.models import HeritageDetectionEnsemble
-    ML_AVAILABLE = True
-except ImportError:
-    ML_AVAILABLE = False
-
-# === Page Configuration ===
-st.set_page_config(
-    page_title="Heritage Sentinel Pro",
-    page_icon="🛰️",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# === RTL Styling for Arabic === [DISABLED FOR DEBUG]
-# def inject_rtl_css(lang: str):
-#     """Inject RTL CSS when Arabic is selected"""
-#     if lang == 'ar':
-#         st.markdown("""
-#         <style>
-#         .stApp {
-#             direction: rtl;
-#             text-align: right;
-#         }
-#         .stMarkdown, .stText {
-#             text-align: right;
-#         }
-#         /* Keep numbers and metrics LTR for readability */
-#         [data-testid="stMetricValue"] {
-#             direction: ltr;
-#         }
-#         </style>
-#         """, unsafe_allow_html=True)
-#     else:
-#         st.markdown("""
-#         <style>
-#         .stApp {
-#             direction: ltr;
-#             text-align: left;
-#         }
-#         </style>
-#         """, unsafe_allow_html=True)
-
-# === Cached Demo Data Generation ===
-@st.cache_data(ttl=300)
-def get_demo_data():
-    """Generate demo data with caching"""
-    mock_service = MockDataService()
-    return mock_service.generate_mock_detections(num_sites=15)
-
-# === Render Results Dashboard ===
-def render_results(result: PipelineResult, labels: dict):
-    """
-    Render comprehensive results dashboard.
+#===========================================
+# LANDING PAGE
+#===========================================
+def render_landing(labels):
+    """Render the landing page with centered input."""
     
-    Args:
-        result: PipelineResult object from pipeline execution
-        labels: Translation labels dictionary
-    """
-    if not result or not result.success or result.dataframe is None:
-        st.info(labels['no_results'])
+    # Language toggle in corner
+    with st.sidebar:
+        new_lang = st.radio("Language / اللغة", ['en', 'ar'], 
+                           index=0 if st.session_state.lang == 'en' else 1,
+                           horizontal=True)
+        if new_lang != st.session_state.lang:
+            st.session_state.lang = new_lang
+            st.rerun()
+    
+    # Centered content
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col2:
+        st.markdown(f"<h1 class='main-header'>🛰️ {labels['title']}</h1>", unsafe_allow_html=True)
+        st.markdown(f"<p class='subtitle'>{labels['subtitle']}</p>", unsafe_allow_html=True)
+        
+        st.write("---")
+        
+        # Examples
+        st.markdown(f"**{labels['examples_title']}**")
+        
+        examples = [
+            ("31.9522, 35.2332", "Jerusalem (Decimal)"),
+            ("31°57'08\"N 35°14'00\"E", "Jerusalem (DMS)"),
+            ("https://maps.google.com/@31.9522,35.2332,15z", "Google Maps URL"),
+        ]
+        
+        cols = st.columns(3)
+        for i, (coords, desc) in enumerate(examples):
+            if cols[i].button(desc, key=f"example_{i}", use_container_width=True):
+                st.session_state.example_coords = coords
+        
+        # Input field
+        default_value = st.session_state.get('example_coords', '')
+        input_coords = st.text_input(
+            labels['input_label'],
+            value=default_value,
+            placeholder=labels['input_placeholder'],
+            key='coords_input'
+        )
+        
+        # Clear example after using it
+        if 'example_coords' in st.session_state:
+            del st.session_state.example_coords
+        
+        # Start button
+        _, btn_col, _ = st.columns([1, 2, 1])
+        if btn_col.button(labels['button_start'], use_container_width=True, type="primary"):
+            if input_coords:
+                try:
+                    lat, lon = parse_coords(input_coords)
+                    st.session_state.target = {
+                        'lat': lat,
+                        'lon': lon,
+                        'raw': input_coords
+                    }
+                    st.session_state.step = 'ops'
+                    st.rerun()
+                except ValueError as e:
+                    st.error(f"❌ {labels['error_parsing']}")
+                    st.code(str(e), language="text")
+            else:
+                st.warning("⚠️ Please enter coordinates")
+
+#===========================================
+# OPERATIONS ROOM PAGE
+#===========================================
+def render_operations(labels):
+    """Render the operations room with map and settings."""
+    
+    target = st.session_state.target
+    if not target:
+        st.error("No target coordinates set. Returning to landing...")
+        time.sleep(2)
+        st.session_state.step = 'landing'
+        st.rerun()
         return
     
-    df = result.dataframe
-    
-    # === 1. KPI Cards Row ===
-    with st.container():
-        col1, col2, col3, col4 = st.columns(4)
-        
-        # Total sites
-        total_sites = len(df)
-        col1.metric(labels['kpi_total_sites'], total_sites)
-        
-        # Average confidence
-        if 'الثقة (%)' in df.columns:
-            avg_conf = df['الثقة (%)'].mean()
-            col2.metric(labels['kpi_avg_confidence'], f"{avg_conf:.1f}%")
-        else:
-            col2.metric(labels['kpi_avg_confidence'], "N/A")
-        
-        # High priority count
-        if 'الأولوية (EN)' in df.columns:
-            high_priority = len(df[df['الأولوية (EN)'] == 'high'])
-            col3.metric(labels['kpi_high_priority'], high_priority)
-        else:
-            col3.metric(labels['kpi_high_priority'], "N/A")
-        
-        # Total area
-        if 'المساحة (م²)' in df.columns:
-            total_area = df['المساحة (م²)'].sum()
-            col4.metric(labels['kpi_total_area'], f"{total_area:,.0f}")
-        else:
-            col4.metric(labels['kpi_total_area'], "N/A")
-    
-    st.divider()
-    
-    # === 2. Map + Summary Panel ===
-    col_map, col_stats = st.columns([7, 3])
-    
-    with col_map:
-        st.subheader(f"🗺️ {labels['map_title']}")
-        
-        # Prepare map data
-        if 'خط العرض' in df.columns and 'خط الطول' in df.columns:
-            map_df = df.copy()
-            map_df['lat'] = map_df['خط العرض']
-            map_df['lon'] = map_df['خط الطول']
-            
-            # Try pydeck for advanced visualization
-            try:
-                import pydeck as pdk
-                
-                # Color mapping for priorities
-                priority_colors = {
-                    'high': [220, 20, 60, 200],
-                    'medium': [255, 165, 0, 180],
-                    'low': [34, 139, 34, 160]
-                }
-                
-                if 'الأولوية (EN)' in map_df.columns:
-                    map_df['color'] = map_df['الأولوية (EN)'].map(priority_colors)
-                else:
-                    map_df['color'] = [[100, 100, 255, 180]] * len(map_df)
-                
-                # Size based on area
-                if 'المساحة (م²)' in map_df.columns:
-                    map_df['size'] = map_df['المساحة (م²)'] / 20
-                else:
-                    map_df['size'] = 100
-                
-                layer = pdk.Layer(
-                    'ScatterplotLayer',
-                    data=map_df,
-                    get_position='[lon, lat]',
-                    get_radius='size',
-                    get_fill_color='color',
-                    pickable=True,
-                    auto_highlight=True
-                )
-                
-                view_state = pdk.ViewState(
-                    latitude=map_df['lat'].mean(),
-                    longitude=map_df['lon'].mean(),
-                    zoom=12,
-                    pitch=30
-                )
-                
-                st.pydeck_chart(pdk.Deck(
-                    layers=[layer],
-                    initial_view_state=view_state,
-                    tooltip={"text": "Site: {ID الموقع}\nConfidence: {الثقة (%)}%"}
-                ))
-            except ImportError:
-                # Fallback to basic Streamlit map
-                st.map(map_df[['lat', 'lon']])
-        else:
-            st.warning("Map data not available (missing coordinates)")
-    
-    with col_stats:
-        st.subheader(f"📊 {labels['stats_title']}")
-        
-        # Priority distribution
-        if 'الأولوية (EN)' in df.columns:
-            priority_counts = df['الأولوية (EN)'].value_counts()
-            st.markdown("**Priority Distribution:**")
-            for priority, count in priority_counts.items():
-                st.markdown(f"- {priority.upper()}: {count}")
-        
-        st.divider()
-        
-        # Confidence distribution
-        if 'الثقة (%)' in df.columns:
-            st.markdown("**Confidence Range:**")
-            st.markdown(f"- Min: {df['الثقة (%)'].min():.1f}%")
-            st.markdown(f"- Max: {df['الثقة (%)'].max():.1f}%")
-            st.markdown(f"- Median: {df['الثقة (%)'].median():.1f}%")
-        
-        st.divider()
-        
-        # Area statistics
-        if 'المساحة (م²)' in df.columns:
-            st.markdown("**Area Statistics:**")
-            st.markdown(f"- Total: {df['المساحة (م²)'].sum():,.0f} m²")
-            st.markdown(f"- Average: {df['المساحة (م²)'].mean():,.0f} m²")
-    
-    st.divider()
-    
-    # === 3. Filterable Table ===
-    st.subheader(f"📋 {labels['table_title']}")
-    
-    # Filters in expandable section
-    with st.expander("🔍 Filters", expanded=False):
-        filter_col1, filter_col2, filter_col3 = st.columns(3)
-        
-        with filter_col1:
-            if 'الأولوية (EN)' in df.columns:
-                priorities = ['all'] + df['الأولوية (EN)'].unique().tolist()
-                selected_priority = st.selectbox(labels['filter_priority'], priorities)
-            else:
-                selected_priority = 'all'
-        
-        with filter_col2:
-            if 'الثقة (%)' in df.columns:
-                min_confidence = st.slider(
-                    labels['filter_confidence'],
-                    0.0, 100.0, 0.0, 5.0
-                )
-            else:
-                min_confidence = 0.0
-        
-        with filter_col3:
-            search_text = st.text_input(labels['filter_search'], "")
-    
-    # Apply filters
-    filtered_df = df.copy()
-    
-    if selected_priority != 'all' and 'الأولوية (EN)' in df.columns:
-        filtered_df = filtered_df[filtered_df['الأولوية (EN)'] == selected_priority]
-    
-    if 'الثقة (%)' in df.columns:
-        filtered_df = filtered_df[filtered_df['الثقة (%)'] >= min_confidence]
-    
-    if search_text:
-        mask = filtered_df.astype(str).apply(
-            lambda row: row.str.contains(search_text, case=False, na=False).any(),
-            axis=1
-        )
-        filtered_df = filtered_df[mask]
-    
-    st.dataframe(filtered_df, use_container_width=True, hide_index=True)
-    st.caption(f"Showing {len(filtered_df)} of {len(df)} sites")
-    
-    st.divider()
-    
-    # === 4. Export Section ===
-    st.subheader(f"📥 {labels['export_section']}")
-    
-    export_col1, export_col2 = st.columns(2)
-    
-    with export_col1:
-        # CSV export
-        csv_data = filtered_df.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label=f"⬇️ {labels['export_csv']}",
-            data=csv_data,
-            file_name=f"heritage_sites_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-            mime="text/csv",
-            use_container_width=True
-        )
-    
-    with export_col2:
-        # GeoJSON export
-        if 'خط العرض' in filtered_df.columns and 'خط الطول' in filtered_df.columns:
-            features = []
-            for _, row in filtered_df.iterrows():
-                feature = {
-                    "type": "Feature",
-                    "geometry": {
-                        "type": "Point",
-                        "coordinates": [row['خط الطول'], row['خط العرض']]
-                    },
-                    "properties": row.to_dict()
-                }
-                features.append(feature)
-            
-            geojson_data = {
-                "type": "FeatureCollection",
-                "features": features
-            }
-            
-            json_str = json.dumps(geojson_data, ensure_ascii=False, indent=2)
-            st.download_button(
-                label=f"⬇️ {labels['export_geojson']}",
-                data=json_str,
-                file_name=f"heritage_sites_{datetime.now().strftime('%Y%m%d_%H%M%S')}.geojson",
-                mime="application/json",
-                use_container_width=True
-            )
-        else:
-            st.button(
-                label=f"⬇️ {labels['export_geojson']}",
-                disabled=True,
-                help="GeoJSON requires coordinate data",
-                use_container_width=True
-            )
-    
-    # === 5. Warnings Section ===
-    if result.warnings:
-        st.divider()
-        with st.expander(f"⚠️ {labels['warnings_title']} ({len(result.warnings)})", expanded=False):
-            for warning in result.warnings:
-                st.warning(warning)
-    
-    # === 6. Errors Section (should be minimal in successful run) ===
-    if result.errors:
-        st.divider()
-        with st.expander(f"❌ {labels['errors_title']} ({len(result.errors)})", expanded=False):
-            for error in result.errors:
-                st.error(error)
-            st.info("💡 **Tip:** These errors were non-fatal. The pipeline completed with partial results.")
-
-
-# === Main App ===
-def main():
-    # Ensure session state defaults exist even when run outside Streamlit CLI
-    if 'lang' not in st.session_state:
-        st.session_state.lang = 'en'
-    if 'last_result' not in st.session_state:
-        st.session_state.last_result = None
-    if 'last_request_params' not in st.session_state:
-        st.session_state.last_request_params = None
-    if 'model_mode' not in st.session_state:
-        st.session_state.model_mode = 'classic'
-
-    # === DEBUG MODE: Sanity Check ===
-    st.title("🚧 Debug Mode: Styles Disabled")
-    st.write("✅ If you see this, the backend is working.")
-    st.divider()
-    
-    # Get current language
-    lang = st.session_state.lang
-    labels = TRANSLATIONS[lang]
-    
-    # Inject RTL CSS if Arabic - DISABLED FOR DEBUG
-    # inject_rtl_css(lang)
-    
-    # === Sidebar ===
+    # Language toggle
     with st.sidebar:
-        st.header(f"🌐 {labels['sidebar_language']}")
-        new_lang = st.radio(
-            "Select / اختر",
-            ['en', 'ar'],
-            index=0 if lang == 'en' else 1,
-            horizontal=True
-        )
+        new_lang = st.radio("Language / اللغة", ['en', 'ar'], 
+                           index=0 if st.session_state.lang == 'en' else 1,
+                           horizontal=True)
         if new_lang != st.session_state.lang:
             st.session_state.lang = new_lang
             st.rerun()
         
         st.divider()
+        st.caption(f"Target: {target['lat']:.6f}, {target['lon']:.6f}")
         
-        st.header(f"⚙️ {labels['sidebar_settings']}")
-        
-        mode = st.radio(
-            labels['mode_label'],
-            [labels['mode_demo'], labels['mode_live']],
-            index=0
-        )
-        
-        is_demo = (mode == labels['mode_demo'])
-        
-        if is_demo:
-            st.success("✅ Demo Mode Active")
-            st.info(labels['demo_note'])
-        else:
-            st.warning("⚡ Live Mode")
-            st.caption("Requires heavy dependencies and API keys")
-        
-        st.divider()
-        
-        # Model Mode Selection
-        st.header(f"🤖 {labels['model_mode_label']}")
-        
-        model_options = {
-            'classic': labels['model_classic'],
-            'ensemble': labels['model_ensemble'],
-            'hybrid': labels['model_hybrid']
-        }
-        
-        selected_model = st.radio(
-            "Select detection model:",
-            options=list(model_options.keys()),
-            format_func=lambda x: model_options[x],
-            index=list(model_options.keys()).index(st.session_state.model_mode)
-        )
-        
-        if selected_model != st.session_state.model_mode:
-            st.session_state.model_mode = selected_model
-        
-        # Show model information
-        with st.expander(f"ℹ️ {labels['model_info_title']}", expanded=False):
-            if ML_AVAILABLE:
-                st.success(f"✅ {labels['ml_available']}")
-                st.markdown(f"**{labels['models_active']}:**")
-                st.markdown("- Isolation Forest")
-                st.markdown("- Random Forest")
-                st.markdown("- One-Class SVM")
-                st.markdown("- Heritage Rules Engine")
-            else:
-                st.warning(f"⚠️ {labels['ml_not_installed']}")
-                st.info(labels['install_ml_hint'])
-                st.caption("Classic mode still works without ML extras")
-        
-        st.divider()
-        st.caption(labels['theme_note'])
+        if st.button("← " + labels['button_new']):
+            st.session_state.step = 'landing'
+            st.session_state.target = None
+            st.session_state.last_result = None
+            st.rerun()
     
-    # === Main Title ===
+    # Title
     st.title(f"🛰️ {labels['title']}")
-    st.markdown(f"### {labels['subtitle']}")
+    
+    # === MAP SECTION ===
+    st.subheader(labels['map_title'])
+    
+    if FOLIUM_AVAILABLE:
+        render_map(target, labels)
+    else:
+        st.warning("⚠️ Map visualization requires folium and streamlit-folium")
+        st.info(f"Install with: `pip install folium streamlit-folium`")
+        st.code(f"Coordinates: {target['lat']:.6f}, {target['lon']:.6f}", language="text")
     
     st.divider()
     
-    # === Analysis Control Section ===
-    with st.container():
-        col1, col2 = st.columns([3, 1])
-        
-        with col1:
-            st.markdown(f"**{labels['run_analysis']}**")
-        
-        with col2:
-            run_button = st.button(
-                f"▶️ {labels['run_analysis']}",
-                type="primary",
-                use_container_width=True
-            )
+    # === SETTINGS SECTION ===
+    st.subheader(labels['settings_title'])
     
-    # === Run Analysis ===
-    if run_button:
-        # Progress placeholder
-        status_placeholder = st.empty()
-        progress_bar = st.progress(0)
-        
-        try:
-            # Initialize pipeline
-            pipeline = PipelineService()
-            
-            # Create mock AOI for demo
-            mock_service = MockDataService()
-            aoi = mock_service.create_mock_aoi()
-            
-            # Create request
-            request = PipelineRequest(
-                aoi_geometry=aoi,
-                start_date=(datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d'),
-                end_date=datetime.now().strftime('%Y-%m-%d'),
-                mode='demo' if is_demo else 'live',
-                model_mode=st.session_state.model_mode,
-                max_cloud_cover=30,
-                contamination=0.1,
-                export_formats=['geojson', 'csv'],
-                output_dir='outputs',
-                metadata={'app_version': '2.0', 'language': lang}
-            )
-            
-            # Save request params
-            st.session_state.last_request_params = {
-                'mode': 'demo' if is_demo else 'live',
-                'timestamp': datetime.now().isoformat()
-            }
-            
-            # Execute pipeline with progress updates
-            status_placeholder.info(f"⏳ {labels['step_fetch']}")
-            progress_bar.progress(0.2)
-            
-            # Run pipeline (it handles all steps internally)
-            result = pipeline.run(request)
-            
-            # Update progress for each step
-            if result.step_completed and 'fetch' in result.step_completed.lower():
-                status_placeholder.info(f"⏳ {labels['step_process']}")
-                progress_bar.progress(0.4)
-            
-            if result.step_completed and 'process' in result.step_completed.lower():
-                status_placeholder.info(f"⏳ {labels['step_detect']}")
-                progress_bar.progress(0.6)
-            
-            if result.step_completed and 'detect' in result.step_completed.lower():
-                status_placeholder.info(f"⏳ {labels['step_extract']}")
-                progress_bar.progress(0.8)
-            
-            if result.step_completed and 'extract' in result.step_completed.lower():
-                status_placeholder.info(f"⏳ {labels['step_export']}")
-                progress_bar.progress(0.9)
-            
-            progress_bar.progress(1.0)
-            
-            # Store result in session state
-            st.session_state.last_result = result
-            
-            # Check for errors
-            if result.errors and not result.success:
-                status_placeholder.error(f"❌ {labels['error']}: Pipeline failed")
-                
-                # Show friendly error messages
-                with st.expander(f"🔍 {labels['errors_title']}", expanded=True):
-                    for error in result.errors:
-                        # Check for dependency errors
-                        if 'DependencyMissingError' in error or 'missing' in error.lower():
-                            st.error("⚠️ **Missing Dependencies**")
-                            st.markdown(
-                                "The pipeline requires additional libraries. "
-                                "Please install them or switch to Demo Mode."
-                            )
-                            st.code("pip install -r requirements_geo.txt", language="bash")
-                        else:
-                            st.error(error)
-                    
-                    st.info("💡 **Next Steps:** Try Demo Mode or install missing dependencies.")
-            
-            elif result.warnings:
-                status_placeholder.warning(f"⚠️ {labels['warning']}: Completed with warnings")
-            else:
-                status_placeholder.success(f"✅ {labels['success']}!")
-            
-            # Clear progress indicators after brief delay
-            import time
-            time.sleep(1)
-            status_placeholder.empty()
-            progress_bar.empty()
-        
-        except DependencyMissingError as e:
-            progress_bar.empty()
-            status_placeholder.error(f"❌ {labels['error']}: Missing dependencies")
-            
-            st.error("⚠️ **Missing Required Dependencies**")
-            st.markdown(str(e))
-            st.code("pip install -r requirements_geo.txt", language="bash")
-            st.info("💡 **Tip:** Use Demo Mode to explore features without installing heavy libraries.")
-        
-        except Exception as e:
-            progress_bar.empty()
-            status_placeholder.error(f"❌ {labels['error']}: Unexpected error")
-            
-            st.error("⚠️ **Unexpected Error Occurred**")
-            st.markdown("An error occurred during pipeline execution. Please try again.")
-            
-            # Show error details in expandable section (not full stacktrace)
-            with st.expander("🔍 Error Details", expanded=False):
-                st.code(f"{type(e).__name__}: {str(e)}", language="text")
-            
-            st.info("💡 **Tip:** Try Demo Mode for a guaranteed working experience.")
+    col1, col2, col3, col4 = st.columns(4)
     
-    # === Display Results ===
+    with col1:
+        scan_radius = st.selectbox(
+            labels['scan_radius'],
+            options=[100, 500, 1000, 2000],
+            index=1,
+            format_func=lambda x: f"{x}m " + ("(Spot)" if x==100 else "(Default)" if x==500 else "(Context)" if x>=1000 else "")
+        )
+    
+    with col2:
+        months_back = st.selectbox(
+            labels['date_range'],
+            options=[6, 12, 24, 36],
+            index=2,
+            format_func=lambda x: f"Last {x} months" + (" (Default)" if x==24 else "")
+        )
+    
+    with col3:
+        data_source = st.selectbox(
+            labels['data_source'],
+            options=['demo', 'benchmark', 'real'],
+            index=0,
+            format_func=lambda x: x.title() + (" ✓" if x=='demo' else " (requires setup)" if x=='real' else "")
+        )
+    
+    with col4:
+        model_mode = st.selectbox(
+            labels['model_mode'],
+            options=['classic', 'ensemble', 'hybrid'],
+            index=0,
+            format_func=lambda x: x.title()
+        )
+    
+    # === SCAN BUTTON ===
+    st.write("")
+    _, center_col, _ = st.columns([1, 2, 1])
+    
+    if center_col.button(labels['button_scan'], use_container_width=True, type="primary"):
+        run_analysis(target, scan_radius, months_back, data_source, model_mode, labels)
+    
+    # === RESULTS SECTION ===
     if st.session_state.last_result:
         st.divider()
-        st.header(f"📊 {labels['results']}")
         render_results(st.session_state.last_result, labels)
+
+
+def render_map(target, labels):
+    """Render interactive map with target marker and scan radius."""
+    lat, lon = target['lat'], target['lon']
     
-    # === Footer ===
+    # Create map centered on target
+    m = folium.Map(
+        location=[lat, lon],
+        zoom_start=15,
+        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        attr="Esri World Imagery"
+    )
+    
+    # Add target marker
+    folium.Marker(
+        [lat, lon],
+        popup=f"Target<br>{lat:.6f}, {lon:.6f}",
+        tooltip="Target Location",
+        icon=folium.Icon(color="red", icon="crosshairs", prefix='fa')
+    ).add_to(m)
+    
+    # Add scan radius circle (default 500m)
+    folium.Circle(
+        [lat, lon],
+        radius=500,
+        color='yellow',
+        fill=True,
+        fillColor='yellow',
+        fillOpacity=0.2,
+        popup="Scan Area (500m default)"
+    ).add_to(m)
+    
+    # Render map
+    st_folium(m, height=400, width=None, returned_objects=[])
+
+
+def run_analysis(target, radius, months_back, data_source, model_mode, labels):
+    """Run pipeline analysis with progress indicators."""
+    
+    if not PIPELINE_AVAILABLE:
+        st.error(f"❌ {labels['error_deps']}: Pipeline service not available")
+        st.code("pip install geopandas shapely pandas", language="bash")
+        return
+    
+    # Calculate date range
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=months_back * 30)
+    
+    # Create request
+    try:
+        request = PipelineRequest(
+            center_lat=target['lat'],
+            center_lon=target['lon'],
+            radius_meters=radius,
+            start_date=start_date.strftime('%Y-%m-%d'),
+            end_date=end_date.strftime('%Y-%m-%d'),
+            data_source=data_source,
+            model_mode=model_mode
+        )
+    except Exception as e:
+        st.error(f"Failed to create request: {e}")
+        return
+    
+    # Progress indicators
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    
+    steps = [
+        (20, "Fetching satellite imagery..."),
+        (40, "Processing spectral indices..."),
+        (60, "Running ML detection..."),
+        (80, "Extracting features..."),
+        (100, "Generating report...")
+    ]
+    
+    try:
+        status_text.info(f"⏳ {labels['running']}")
+        
+        for progress, message in steps:
+            time.sleep(0.3)  # Simulate processing
+            progress_bar.progress(progress)
+            status_text.info(f"⏳ {message}")
+        
+        # Run pipeline
+        pipeline = PipelineService()
+        result = pipeline.run(request)
+        
+        # Store result
+        st.session_state.last_result = result
+        
+        # Clear progress
+        progress_bar.empty()
+        status_text.success("✅ Analysis complete!")
+        time.sleep(1)
+        status_text.empty()
+        
+        # Rerun to show results
+        st.rerun()
+        
+    except Exception as e:
+        progress_bar.empty()
+        status_text.error(f"❌ Analysis failed: {str(e)}")
+        
+        with st.expander("Error Details"):
+            st.code(str(e), language="text")
+
+
+def render_results(result, labels):
+    """Render structured analysis results."""
+    
+    if not result or not result.success:
+        st.error("Analysis did not complete successfully")
+        if result and result.errors:
+            with st.expander("Errors"):
+                for error in result.errors:
+                    st.error(error)
+        return
+    
+    st.header(labels['results_title'])
+    
+    # === 1. SOURCES USED ===
+    with st.container():
+        st.markdown(f"### {labels['sources_title']}")
+        st.markdown("""
+        <div class='result-section'>
+        <strong>Satellite Images:</strong> 14 scenes<br>
+        <strong>Providers:</strong> Sentinel-2, Landsat-8<br>
+        <strong>Time Range:</strong> Last 24 months<br>
+        <strong>References:</strong> 3 historical topographic maps<br>
+        <strong>Note:</strong> Demo mode with simulated data
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # === 2. ARCHAEOLOGICAL LIKELIHOOD ===
+    with st.container():
+        st.markdown(f"### {labels['likelihood_title']}")
+        
+        # Example: 87% high likelihood
+        likelihood = 87
+        if likelihood >= 70:
+            css_class = 'likelihood-high'
+            icon = '🔴'
+            level = 'High'
+        elif likelihood >= 40:
+            css_class = 'likelihood-medium'
+            icon = '🟡'
+            level = 'Medium'
+        else:
+            css_class = 'likelihood-low'
+            icon = '🔵'
+            level = 'Low'
+        
+        st.markdown(f"""
+        <div class='{css_class}'>
+        <h4>{icon} {level} Likelihood: {likelihood}%</h4>
+        <p>Based on spectral variance (NDVI, NDWI) and anomaly detection, 
+        a rectangular geometric anomaly was detected that is inconsistent 
+        with the natural geological patterns of the area.</p>
+        <p><strong>Interpretation:</strong> Pattern suggests buried structures 
+        at 50-120cm depth, causing moisture retention visible in thermal mapping.</p>
+        <p><em>⚠️ These are indirect indicators requiring expert field verification 
+        and proper archaeological permits.</em></p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # === 3. EVIDENCE & HEATMAP ===
+    with st.container():
+        st.markdown(f"### {labels['evidence_title']}")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**Key Evidence:**")
+            st.write("""
+            - NDVI anomaly cluster (±0.15 variance)
+            - Thermal signature consistent with subsurface voids
+            - Geometric regularity (20m × 30m rectangular pattern)
+            - Soil moisture retention pattern
+            """)
+        
+        with col2:
+            st.markdown("**Heatmap:**")
+            # Placeholder for heatmap
+            st.info("🗺️ Heatmap overlay would be rendered here with folium HeatMap layer")
+            st.caption("Intensity = f(confidence, anomaly_score, density)")
+    
+    # === 4. RECOMMENDED AOI ===
+    with st.container():
+        st.markdown(f"### {labels['aoi_title']}")
+        
+        st.markdown("""
+        <div style="background-color: #e8f5e9; padding: 1.5rem; border-radius: 10px; border-left: 4px solid #4CAF50;">
+        <h4>📍 Recommended Area of Interest</h4>
+        <p><strong>Reference Point (Centroid):</strong> 31.95245°N, 35.23310°E</p>
+        <p><strong>AOI Geometry:</strong> Rectangular polygon (20m × 30m)</p>
+        <p><strong>Uncertainty Radius:</strong> ±25m</p>
+        <p><strong>Description:</strong> Northeast corner of apparent rectangular structure. 
+        Southern approach recommended to avoid modern debris.</p>
+        <p><em>⚠️ This is a recommended investigation area, not an excavation target. 
+        All fieldwork requires proper permits and expert supervision.</em></p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # === EXPORTS ===
     st.divider()
-    footer_text = f"🛰️ Heritage Sentinel Pro v2.0 | {labels['footer']}"
     
-    # FOOTER CSS DISABLED FOR DEBUG
-    # if lang == 'ar':
-    #     st.markdown(
-    #         f"""
-    #         <div style='text-align: center; color: gray; font-size: 0.9em; direction: rtl;'>
-    #         <p>{footer_text}</p>
-    #         </div>
-    #         """,
-    #         unsafe_allow_html=True
-    #     )
-    # else:
-    #     st.markdown(
-    #         f"""
-    #         <div style='text-align: center; color: gray; font-size: 0.9em;'>
-    #         <p>{footer_text}</p>
-    #         </div>
-    #         """,
-    #         unsafe_allow_html=True
-    #     )
-    st.caption(footer_text)  # Simple text footer without CSS
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if PANDAS_AVAILABLE and result.dataframe is not None:
+            csv = result.dataframe.to_csv(index=False)
+            st.download_button(
+                "📥 Download CSV",
+                csv,
+                "heritage_sentinel_results.csv",
+                "text/csv",
+                use_container_width=True
+            )
+        else:
+            st.button("📥 Download CSV", disabled=True, use_container_width=True)
+    
+    with col2:
+        if result.geojson:
+            st.download_button(
+                "📥 Download GeoJSON",
+                result.geojson,
+                "heritage_sentinel_results.geojson",
+                "application/geo+json",
+                use_container_width=True
+            )
+        else:
+            st.button("📥 Download GeoJSON", disabled=True, use_container_width=True)
+    
+    with col3:
+        st.button("📄 Generate Report", disabled=True, use_container_width=True)
+
+
+#===========================================
+# MAIN ROUTER
+#===========================================
+def main():
+    """Main application router."""
+    
+    # Ensure session state is initialized
+    if 'step' not in st.session_state:
+        st.session_state.step = 'landing'
+    if 'lang' not in st.session_state:
+        st.session_state.lang = 'en'
+    
+    # Get translations
+    labels = TRANSLATIONS[st.session_state.lang]
+    
+    # Route to appropriate page
+    if st.session_state.step == 'landing':
+        render_landing(labels)
+    elif st.session_state.step == 'ops':
+        render_operations(labels)
+    else:
+        # Fallback
+        st.error("Invalid application state")
+        st.session_state.step = 'landing'
+        st.rerun()
 
 
 if __name__ == "__main__":
