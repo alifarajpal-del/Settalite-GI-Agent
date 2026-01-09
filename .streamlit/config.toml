@@ -1,0 +1,46 @@
+# Heritage Sentinel Pro - Streamlit Theme Configuration
+# Modern SaaS Dashboard Theme
+
+[theme]
+# Primary color - Satellite Blue
+primaryColor = "#1E88E5"
+
+# Background color - Dark mode friendly
+backgroundColor = "#0E1117"
+
+# Secondary background - Slightly lighter for cards
+secondaryBackgroundColor = "#1A1F2E"
+
+# Text color - High contrast white
+textColor = "#FAFAFA"
+
+# Font - Modern sans-serif
+font = "sans serif"
+
+[server]
+# Enable CORS for development
+enableCORS = false
+enableXsrfProtection = true
+
+# Run on headless mode (for deployment)
+headless = true
+
+# Port configuration (default)
+port = 8501
+
+[browser]
+# Disable usage stats collection
+gatherUsageStats = false
+
+# Server address
+serverAddress = "localhost"
+
+[runner]
+# Magic commands enabled
+magicEnabled = true
+
+# Fast rerun on file changes
+fastReruns = true
+
+# Maximum message size (MB)
+maxMessageSize = 200
