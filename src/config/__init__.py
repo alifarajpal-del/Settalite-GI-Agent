@@ -141,10 +141,11 @@ def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
     Load configuration with fallback and environment variable merging
     
     Priority:
-    1. Specified config_path
-    2. config/config.yaml (if exists)
-    3. Default configuration
-    4. Environment variable overlay
+    1. Streamlit secrets (if available)
+    2. Specified config_path
+    3. config/config.yaml (if exists)
+    4. Default configuration
+    5. Environment variable overlay
     
     Args:
         config_path: Optional path to config file
@@ -175,6 +176,25 @@ def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
     
     # Merge environment variables
     config = merge_env_variables(config)
+    
+    # Merge Streamlit secrets (highest priority for credentials)
+    try:
+        import streamlit as st
+        if hasattr(st, 'secrets'):
+            # Merge sentinelhub secrets
+            if 'sentinelhub' in st.secrets:
+                if 'sentinelhub' not in config:
+                    config['sentinelhub'] = {}
+                config['sentinelhub'].update(dict(st.secrets['sentinelhub']))
+            
+            # Merge gee secrets
+            if 'gee' in st.secrets:
+                if 'gee' not in config:
+                    config['gee'] = {}
+                config['gee'].update(dict(st.secrets['gee']))
+    except (ImportError, FileNotFoundError, AttributeError):
+        # Not in Streamlit environment or secrets not configured
+        pass
     
     # Validate
     is_valid, warnings = validate_config(config)
