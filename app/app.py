@@ -142,34 +142,34 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# === RTL Styling for Arabic ===
-def inject_rtl_css(lang: str):
-    """Inject RTL CSS when Arabic is selected"""
-    if lang == 'ar':
-        st.markdown("""
-        <style>
-        .stApp {
-            direction: rtl;
-            text-align: right;
-        }
-        .stMarkdown, .stText {
-            text-align: right;
-        }
-        /* Keep numbers and metrics LTR for readability */
-        [data-testid="stMetricValue"] {
-            direction: ltr;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown("""
-        <style>
-        .stApp {
-            direction: ltr;
-            text-align: left;
-        }
-        </style>
-        """, unsafe_allow_html=True)
+# === RTL Styling for Arabic === [DISABLED FOR DEBUG]
+# def inject_rtl_css(lang: str):
+#     """Inject RTL CSS when Arabic is selected"""
+#     if lang == 'ar':
+#         st.markdown("""
+#         <style>
+#         .stApp {
+#             direction: rtl;
+#             text-align: right;
+#         }
+#         .stMarkdown, .stText {
+#             text-align: right;
+#         }
+#         /* Keep numbers and metrics LTR for readability */
+#         [data-testid="stMetricValue"] {
+#             direction: ltr;
+#         }
+#         </style>
+#         """, unsafe_allow_html=True)
+#     else:
+#         st.markdown("""
+#         <style>
+#         .stApp {
+#             direction: ltr;
+#             text-align: left;
+#         }
+#         </style>
+#         """, unsafe_allow_html=True)
 
 # === Cached Demo Data Generation ===
 @st.cache_data(ttl=300)
@@ -432,12 +432,17 @@ def render_results(result: PipelineResult, labels: dict):
 
 # === Main App ===
 def main():
+    # === DEBUG MODE: Sanity Check ===
+    st.title("🚧 Debug Mode: Styles Disabled")
+    st.write("✅ If you see this, the backend is working.")
+    st.divider()
+    
     # Get current language
     lang = st.session_state.lang
     labels = TRANSLATIONS[lang]
     
-    # Inject RTL CSS if Arabic
-    inject_rtl_css(lang)
+    # Inject RTL CSS if Arabic - DISABLED FOR DEBUG
+    # inject_rtl_css(lang)
     
     # === Sidebar ===
     with st.sidebar:
@@ -655,24 +660,26 @@ def main():
     st.divider()
     footer_text = f"🛰️ Heritage Sentinel Pro v2.0 | {labels['footer']}"
     
-    if lang == 'ar':
-        st.markdown(
-            f"""
-            <div style='text-align: center; color: gray; font-size: 0.9em; direction: rtl;'>
-            <p>{footer_text}</p>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-    else:
-        st.markdown(
-            f"""
-            <div style='text-align: center; color: gray; font-size: 0.9em;'>
-            <p>{footer_text}</p>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+    # FOOTER CSS DISABLED FOR DEBUG
+    # if lang == 'ar':
+    #     st.markdown(
+    #         f"""
+    #         <div style='text-align: center; color: gray; font-size: 0.9em; direction: rtl;'>
+    #         <p>{footer_text}</p>
+    #         </div>
+    #         """,
+    #         unsafe_allow_html=True
+    #     )
+    # else:
+    #     st.markdown(
+    #         f"""
+    #         <div style='text-align: center; color: gray; font-size: 0.9em;'>
+    #         <p>{footer_text}</p>
+    #         </div>
+    #         """,
+    #         unsafe_allow_html=True
+    #     )
+    st.caption(footer_text)  # Simple text footer without CSS
 
 
 if __name__ == "__main__":
