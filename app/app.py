@@ -28,6 +28,13 @@ try:
 except ImportError:
     PANDAS_AVAILABLE = False
 
+try:
+    from shapely.geometry import Point
+    import dataclasses
+    SHAPELY_AVAILABLE = True
+except ImportError:
+    SHAPELY_AVAILABLE = False
+
 # Import core utilities
 from src.utils.coords_parser import parse_coords
 
@@ -369,23 +376,63 @@ def run_analysis(target, radius, months_back, data_source, model_mode, labels):
         st.code("pip install geopandas shapely pandas", language="bash")
         return
     
+    if not SHAPELY_AVAILABLE:
+        st.error(f"❌ {labels['error_deps']}: Shapely library required for geometry operations")
+        st.code("pip install shapely", language="bash")
+        return
+    
     # Calculate date range
     end_date = datetime.now()
     start_date = end_date - timedelta(days=months_back * 30)
     
-    # Create request
+    # Create AOI geometry from center point + radius
     try:
-        request = PipelineRequest(
-            center_lat=target['lat'],
-            center_lon=target['lon'],
-            radius_meters=radius,
-            start_date=start_date.strftime('%Y-%m-%d'),
-            end_date=end_date.strftime('%Y-%m-%d'),
-            data_source=data_source,
-            model_mode=model_mode
-        )
+        lat, lon = target['lat'], target['lon']
+        
+        # Create point geometry (note: Shapely uses (x, y) = (lon, lat))
+        center_pt = Point(lon, lat)
+        
+        # Convert radius from meters to degrees (approximation)
+        # 1 degree ≈ 111,320 meters at equator
+        radius_deg = radius / 111_320.0
+        aoi_geom = center_pt.buffer(radius_deg)
+        
+        # Build request kwargs dynamically based on actual PipelineRequest fields
+        fields = {f.name for f in dataclasses.fields(PipelineRequest)}
+        kwargs = {}
+        
+        # AOI geometry
+        if "aoi_geometry" in fields:
+            kwargs["aoi_geometry"] = aoi_geom
+        elif "aoi_wkt" in fields:
+            kwargs["aoi_wkt"] = aoi_geom.wkt
+        elif "aoi_geojson" in fields:
+            kwargs["aoi_geojson"] = aoi_geom.__geo_interface__
+        
+        # Dates
+        if "start_date" in fields:
+            kwargs["start_date"] = start_date.strftime('%Y-%m-%d')
+        if "end_date" in fields:
+            kwargs["end_date"] = end_date.strftime('%Y-%m-%d')
+        
+        # Data source (might be called 'mode' in PipelineRequest)
+        if "data_source" in fields:
+            kwargs["data_source"] = data_source
+        elif "mode" in fields:
+            kwargs["mode"] = data_source
+        
+        # Model mode
+        if "model_mode" in fields:
+            kwargs["model_mode"] = model_mode
+        
+        # Create request with validated fields only
+        request = PipelineRequest(**kwargs)
+        
     except Exception as e:
         st.error(f"Failed to create request: {e}")
+        with st.expander("Debug Info"):
+            st.code(f"Available fields: {[f.name for f in dataclasses.fields(PipelineRequest)]}", language="text")
+            st.code(f"Error: {str(e)}", language="text")
         return
     
     # Progress indicators
@@ -547,14 +594,31 @@ def render_results(result, labels):
             st.button("📥 Download CSV", disabled=True, use_container_width=True)
     
     with col2:
-        if result.geojson:
+        # Check if GeoJSON export is available in export_paths
+        geojson_path = result.export_paths.get('geojson') if result.export_paths else None
+        if geojson_path and Path(geojson_path).exists():
+            with open(geojson_path, 'r', encoding='utf-8') as f:
+                geojson_data = f.read()
             st.download_button(
                 "📥 Download GeoJSON",
-                result.geojson,
+                geojson_data,
                 "heritage_sentinel_results.geojson",
                 "application/geo+json",
                 use_container_width=True
             )
+        elif PANDAS_AVAILABLE and result.dataframe is not None:
+            # Generate GeoJSON on the fly if not exported
+            try:
+                geojson_data = result.dataframe.to_json()
+                st.download_button(
+                    "📥 Download GeoJSON",
+                    geojson_data,
+                    "heritage_sentinel_results.geojson",
+                    "application/geo+json",
+                    use_container_width=True
+                )
+            except Exception:
+                st.button("📥 Download GeoJSON", disabled=True, use_container_width=True)
         else:
             st.button("📥 Download GeoJSON", disabled=True, use_container_width=True)
     
