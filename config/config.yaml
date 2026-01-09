@@ -13,13 +13,6 @@ satellite:
       bands:
         optical: ["B02", "B03", "B04", "B08", "B11", "B12"]
         sar: ["VV", "VH"]
-
-# Sentinel Hub OAuth Credentials (add to Streamlit secrets)
-sentinelhub:
-  # Get these from: https://apps.sentinel-hub.com/dashboard/
-  # User Settings -> OAuth clients -> Create new OAuth client
-  client_id: null  # Add to .streamlit/secrets.toml or Streamlit Cloud
-  client_secret: null  # Add to .streamlit/secrets.toml or Streamlit Cloud
     
     landsat:
       collection: "LANDSAT_8_C1"
@@ -28,6 +21,13 @@ sentinelhub:
     planet:
       enabled: false
       item_type: "PSScene"
+
+# Sentinel Hub OAuth Credentials (add to Streamlit secrets)
+sentinelhub:
+  # Get these from: https://apps.sentinel-hub.com/dashboard/
+  # User Settings -> OAuth clients -> Create new OAuth client
+  client_id: null  # Add to .streamlit/secrets.toml or Streamlit Cloud
+  client_secret: null  # Add to .streamlit/secrets.toml or Streamlit Cloud
 
 # Google Earth Engine Configuration
 gee:

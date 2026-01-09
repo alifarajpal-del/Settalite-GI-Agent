@@ -28,6 +28,9 @@ from src.services.detection_service import AnomalyDetectionService
 from src.services.coordinate_extractor import CoordinateExtractor
 from src.services.export_service import ExportService
 
+# Import provenance system (PROMPT 2)
+from src.provenance import RunManifest, ManifestStatus
+
 # Import ML models and features (optional)
 try:
     from src.models import HeritageDetectionEnsemble
@@ -51,11 +54,13 @@ class PipelineRequest:
     """
     Encapsulates all inputs required for pipeline execution.
     
+    PROMPT 1: Unified API - AOI geometry only (no center_lat/lon)
+    
     Attributes:
-        aoi_geometry: Area of interest (Shapely geometry)
+        aoi_geometry: Area of interest (Shapely geometry: Point, Polygon, etc.)
         start_date: Start date for satellite data (YYYY-MM-DD)
         end_date: End date for satellite data (YYYY-MM-DD)
-        mode: Execution mode ('demo' or 'live')
+        mode: Execution mode ('demo' or 'live' - 'real' auto-converted to 'live')
         max_cloud_cover: Maximum cloud coverage percentage
         anomaly_algorithm: Algorithm for anomaly detection
         contamination: Contamination parameter for anomaly detection
@@ -64,7 +69,7 @@ class PipelineRequest:
         output_basename: Base name for output files
         metadata: Additional metadata to include in results
     """
-    aoi_geometry: Any
+    aoi_geometry: Any  # Shapely geometry (Point/Polygon/MultiPolygon)
     start_date: str
     end_date: str
     mode: str = 'demo'
@@ -76,6 +81,22 @@ class PipelineRequest:
     output_dir: str = 'outputs'
     output_basename: str = field(default_factory=lambda: f"results_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
     metadata: Dict[str, Any] = field(default_factory=dict)
+    
+    def __post_init__(self):
+        """Validate and normalize inputs."""
+        # Normalize mode: 'real' -> 'live' for backward compatibility
+        if self.mode == 'real':
+            self.mode = 'live'
+        
+        # Validate mode
+        if self.mode not in ['demo', 'live']:
+            raise ValueError(
+                f"Invalid mode: '{self.mode}'. Must be 'demo' or 'live' (or 'real' which converts to 'live')."
+            )
+        
+        # Validate AOI geometry exists
+        if self.aoi_geometry is None:
+            raise ValueError("aoi_geometry is required and cannot be None")
 
 
 @dataclass
@@ -83,14 +104,17 @@ class PipelineResult:
     """
     Standardized output from pipeline execution.
     
-    PROMPT 5: No-Fake-Live Contract
+    PROMPT 2: No-Fake-Live Contract with Provenance Manifest
     - status: 'DEMO_OK' | 'LIVE_OK' | 'LIVE_FAILED'
+    - manifest: Complete provenance tracking (REQUIRED)
+    - data_quality: Quality metrics
     - If LIVE_FAILED: no likelihood, no heatmap, only failure_reason
-    - If LIVE_OK: must have provenance data
+    - If LIVE_OK: must have real data in manifest
     
     Attributes:
         success: Whether pipeline completed successfully
         status: Execution status following No-Fake-Live contract
+        manifest: RunManifest with complete provenance (PROMPT 2)
         dataframe: GeoDataFrame with detected sites (None if LIVE_FAILED)
         stats: Dictionary with statistics (num_sites, processing_time, etc.)
         export_paths: Dictionary mapping format to file path
@@ -98,11 +122,13 @@ class PipelineResult:
         warnings: List of warning messages
         metadata: Additional metadata about the execution
         step_completed: Last step successfully completed
-        provenance: Live data provenance (required for LIVE_OK)
+        data_quality: Quality metrics (scene count, cloud cover, etc.)
+        provenance: Simplified provenance for UI (legacy, use manifest instead)
         failure_reason: Reason for LIVE_FAILED (if applicable)
     """
     success: bool
     status: str  # 'DEMO_OK' | 'LIVE_OK' | 'LIVE_FAILED'
+    manifest: RunManifest  # PROMPT 2: Complete provenance tracking
     dataframe: Optional[Any] = None  # GeoDataFrame (avoid import at module level)
     stats: Dict[str, Any] = field(default_factory=dict)
     export_paths: Dict[str, str] = field(default_factory=dict)
@@ -110,8 +136,16 @@ class PipelineResult:
     warnings: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
     step_completed: Optional[str] = None
-    provenance: Optional[Dict[str, Any]] = None  # Live data provenance
+    data_quality: Dict[str, Any] = field(default_factory=dict)  # PROMPT 2
+    provenance: Optional[Dict[str, Any]] = None  # Legacy (use manifest)
     failure_reason: Optional[str] = None  # For LIVE_FAILED
+    
+    def can_show_likelihood(self) -> bool:
+        """
+        PROMPT 2: Check if archaeological likelihood can be shown.
+        Only true if manifest indicates real data processing was successful.
+        """
+        return self.manifest.can_compute_likelihood()
 
 
 class PipelineService:

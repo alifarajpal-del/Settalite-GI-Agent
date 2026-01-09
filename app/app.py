@@ -440,41 +440,15 @@ def run_analysis(target, radius, months_back, data_source, model_mode, labels):
         radius_deg = radius / 111_320.0
         aoi_geom = center_pt.buffer(radius_deg)
         
-        # Build request kwargs dynamically based on actual PipelineRequest fields
-        fields = {f.name for f in dataclasses.fields(PipelineRequest)}
-        kwargs = {}
-        
-        # AOI geometry
-        if "aoi_geometry" in fields:
-            kwargs["aoi_geometry"] = aoi_geom
-        elif "aoi_wkt" in fields:
-            kwargs["aoi_wkt"] = aoi_geom.wkt
-        elif "aoi_geojson" in fields:
-            kwargs["aoi_geojson"] = aoi_geom.__geo_interface__
-        
-        # Dates
-        if "start_date" in fields:
-            kwargs["start_date"] = start_date.strftime('%Y-%m-%d')
-        if "end_date" in fields:
-            kwargs["end_date"] = end_date.strftime('%Y-%m-%d')
-        
-        # Mode validation: only 'demo' or 'live' allowed
-        if data_source not in ['demo', 'live']:
-            st.error(f"❌ Invalid mode: {data_source}. Must be 'demo' or 'live'")
-            return
-        
-        # Data source (PipelineRequest uses 'mode')
-        if "mode" in fields:
-            kwargs["mode"] = data_source
-        elif "data_source" in fields:
-            kwargs["data_source"] = data_source
-        
-        # Model mode
-        if "model_mode" in fields:
-            kwargs["model_mode"] = model_mode
-        
-        # Create request with validated fields only
-        request = PipelineRequest(**kwargs)
+        # Create request (mode will be normalized in __post_init__)
+        # 'real' will auto-convert to 'live'
+        request = PipelineRequest(
+            aoi_geometry=aoi_geom,
+            start_date=start_date.strftime('%Y-%m-%d'),
+            end_date=end_date.strftime('%Y-%m-%d'),
+            mode=data_source,  # 'demo' or 'live' (or 'real')
+            model_mode=model_mode
+        )
         
     except Exception as e:
         st.error(f"Failed to create request: {e}")
