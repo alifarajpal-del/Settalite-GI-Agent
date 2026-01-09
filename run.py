@@ -10,17 +10,24 @@ import os
 import sys
 
 # 1. Add project root to path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+root_path = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(root_path)
 
 # 2. Check environment
 IN_STREAMLIT_CLOUD = os.environ.get("STREAMLIT_RUNTIME_ENV") or os.environ.get("HOSTNAME") == "streamlit"
 
 if __name__ == "__main__":
     if IN_STREAMLIT_CLOUD:
-        # On Cloud: Just import the app directly. Do NOT use bootstrap.
+        # On Cloud: Import AND run main()
         import app.app
+        if hasattr(app.app, 'main'):
+            app.app.main()
+        else:
+            # Fallback if no main function exists (execute script directly)
+            with open(os.path.join(root_path, "app", "app.py")) as f:
+                exec(f.read(), globals(), locals())
     else:
-        # Local: Run via CLI command to ensure environment is loaded
+        # Local: Run via CLI command
         print("🚀 Running locally...")
         os.system("streamlit run app/app.py")
 
