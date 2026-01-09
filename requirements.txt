@@ -22,9 +22,10 @@ scikit-learn>=1.3.0
 fiona>=1.9.0
 pyproj>=3.6.0
 
-# مكتبات أقمار صناعية متقدمة (للاستخدام المستقبلي - اختيارية)
+# مكتبات أقمار صناعية متقدمة - Live Mode Support
 rasterio>=1.3.0
-# sentinelhub>=3.9.0
+sentinelhub>=3.9.0
+earthengine-api>=0.1.350
 # eoreader>=0.28.0
 # sentinelsat>=1.1.0
 

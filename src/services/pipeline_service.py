@@ -83,17 +83,26 @@ class PipelineResult:
     """
     Standardized output from pipeline execution.
     
+    PROMPT 5: No-Fake-Live Contract
+    - status: 'DEMO_OK' | 'LIVE_OK' | 'LIVE_FAILED'
+    - If LIVE_FAILED: no likelihood, no heatmap, only failure_reason
+    - If LIVE_OK: must have provenance data
+    
     Attributes:
         success: Whether pipeline completed successfully
-        dataframe: GeoDataFrame with detected sites (None if failed)
+        status: Execution status following No-Fake-Live contract
+        dataframe: GeoDataFrame with detected sites (None if LIVE_FAILED)
         stats: Dictionary with statistics (num_sites, processing_time, etc.)
         export_paths: Dictionary mapping format to file path
         errors: List of error messages encountered
         warnings: List of warning messages
         metadata: Additional metadata about the execution
         step_completed: Last step successfully completed
+        provenance: Live data provenance (required for LIVE_OK)
+        failure_reason: Reason for LIVE_FAILED (if applicable)
     """
     success: bool
+    status: str  # 'DEMO_OK' | 'LIVE_OK' | 'LIVE_FAILED'
     dataframe: Optional[Any] = None  # GeoDataFrame (avoid import at module level)
     stats: Dict[str, Any] = field(default_factory=dict)
     export_paths: Dict[str, str] = field(default_factory=dict)
@@ -101,6 +110,8 @@ class PipelineResult:
     warnings: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
     step_completed: Optional[str] = None
+    provenance: Optional[Dict[str, Any]] = None  # Live data provenance
+    failure_reason: Optional[str] = None  # For LIVE_FAILED
 
 
 class PipelineService:
@@ -199,9 +210,10 @@ class PipelineService:
         """
         Execute the complete pipeline with the given request.
         
-        This method orchestrates all services in a linear flow, handling errors
-        gracefully at each step. If any critical step fails, it returns
-        immediately with error details.
+        PROMPT 5: No-Fake-Live Contract enforced:
+        - DEMO_OK: Mock data with clear labeling
+        - LIVE_OK: Real data with provenance
+        - LIVE_FAILED: No results, only failure reason
         
         Args:
             request: PipelineRequest object with all necessary parameters
@@ -210,7 +222,7 @@ class PipelineService:
             PipelineResult: Standardized result object with data, stats, and errors
         """
         start_time = datetime.now()
-        result = PipelineResult(success=False)
+        result = PipelineResult(success=False, status='UNKNOWN')
         
         self.logger.info("="*60)
         self.logger.info("Starting Heritage Sentinel Pro Pipeline")
@@ -245,39 +257,90 @@ class PipelineService:
                 )
                 bands_data = mock_data['bands']
                 result.step_completed = 'fetch'
+                result.status = 'DEMO_OK'  # Clear demo labeling
                 
             elif request.mode == 'live':
-                # Live mode: use SatelliteService
-                self.logger.info("Using SatelliteService for live mode")
+                # Live mode: use real satellite providers (Sentinel Hub + GEE)
+                self.logger.info("Using Live satellite providers (Sentinel Hub + GEE)")
                 
+                # Try Sentinel Hub first
                 try:
-                    satellite_service = self._get_satellite_service()
-                    satellite_result = satellite_service.download_sentinel_data(
-                        aoi_geometry=request.aoi_geometry,
-                        start_date=request.start_date,
-                        end_date=request.end_date,
-                        max_cloud_cover=request.max_cloud_cover
-                    )
-                    bands_data = satellite_result['bands']
-                    result.step_completed = 'fetch'
+                    from src.services.sentinelhub_fetcher import SentinelHubFetcher
+                    sh_fetcher = SentinelHubFetcher(self.config, self.logger)
                     
-                except DependencyMissingError as e:
-                    # Heavy libraries missing - graceful degradation
-                    error_msg = f"Missing dependencies for live mode: {', '.join(e.missing_libs)}"
-                    self.logger.warning(error_msg)
-                    result.errors.append(error_msg)
-                    result.warnings.append(f"Install hint: {e.install_hint}")
-                    result.warnings.append("Falling back to demo mode...")
+                    if not sh_fetcher.available:
+                        # Sentinel Hub not available - LIVE_FAILED
+                        result.status = 'LIVE_FAILED'
+                        result.failure_reason = 'SENTINELHUB_UNAVAILABLE: Install sentinelhub library or configure credentials'
+                        self.logger.error(result.failure_reason)
+                        result.errors.append(result.failure_reason)
+                        return result
                     
-                    # Fall back to demo mode
-                    mock_service = self._get_mock_service()
-                    mock_data = mock_service.generate_mock_satellite_data(
-                        width=100,
-                        height=100
-                    )
-                    bands_data = mock_data['bands']
-                    result.metadata['fallback_to_demo'] = True
-                    result.step_completed = 'fetch'
+                    # Fetch scene metadata
+                    # Convert AOI geometry to bbox
+                    bbox = request.aoi_geometry.bounds  # (minx, miny, maxx, maxy)
+                    start_dt = datetime.strptime(request.start_date, '%Y-%m-%d')
+                    end_dt = datetime.strptime(request.end_date, '%Y-%m-%d')
+                    
+                    sh_result = sh_fetcher.fetch_scenes(bbox, start_dt, end_dt)
+                    
+                    if sh_result.status == 'LIVE_FAILED':
+                        # Sentinel Hub fetch failed - LIVE_FAILED
+                        result.status = 'LIVE_FAILED'
+                        result.failure_reason = sh_result.failure_reason
+                        self.logger.error(f"Sentinel Hub fetch failed: {sh_result.failure_reason}")
+                        result.errors.append(sh_result.failure_reason)
+                        return result
+                    
+                    # Store provenance
+                    result.provenance = {
+                        'provider': 'sentinelhub',
+                        'scenes_count': sh_result.scenes_count,
+                        'cloud_stats': sh_result.cloud_stats,
+                        'time_range': [sh_result.time_range[0].isoformat(), sh_result.time_range[1].isoformat()],
+                        'resolution': sh_result.resolution
+                    }
+                    
+                    # Try GEE for additional analysis (optional)
+                    try:
+                        from src.services.gee_analyzer import GoogleEarthEngineAnalyzer
+                        gee_analyzer = GoogleEarthEngineAnalyzer(self.config, self.logger)
+                        
+                        if gee_analyzer.available:
+                            gee_result = gee_analyzer.analyze_multitemporal(bbox, start_dt, end_dt)
+                            if gee_result.status == 'GEE_OK':
+                                result.provenance['gee_available'] = True
+                                result.provenance['gee_indicators'] = len(gee_result.indicators)
+                            else:
+                                result.warnings.append(f"GEE analysis unavailable: {gee_result.failure_reason}")
+                                result.provenance['gee_available'] = False
+                        else:
+                            result.warnings.append("GEE not available - analysis based on Sentinel Hub only")
+                            result.provenance['gee_available'] = False
+                    except ImportError:
+                        result.warnings.append("GEE library not installed - analysis based on Sentinel Hub only")
+                        result.provenance['gee_available'] = False
+                    
+                    # TODO: Actually download and process imagery
+                    # For now: LIVE_FAILED with clear message
+                    result.status = 'LIVE_FAILED'
+                    result.failure_reason = 'IMPLEMENTATION_PENDING: Live imagery processing in development'
+                    self.logger.warning(result.failure_reason)
+                    result.errors.append(result.failure_reason)
+                    return result
+                    
+                except ImportError as e:
+                    result.status = 'LIVE_FAILED'
+                    result.failure_reason = f'SENTINELHUB_MISSING: Install with pip install sentinelhub'
+                    self.logger.error(result.failure_reason)
+                    result.errors.append(result.failure_reason)
+                    return result
+                except Exception as e:
+                    result.status = 'LIVE_FAILED'
+                    result.failure_reason = f'LIVE_FETCH_ERROR: {str(e)}'
+                    self.logger.error(result.failure_reason)
+                    result.errors.append(result.failure_reason)
+                    return result
             
             else:
                 error_msg = f"Invalid mode: {request.mode}. Must be 'demo' or 'live'"

@@ -345,12 +345,14 @@ def render_operations(labels):
         )
     
     with col3:
-        data_source = st.selectbox(
+        # UI shows friendly names, but internally we use 'demo'/'live'
+        data_source_ui = st.selectbox(
             labels['data_source'],
-            options=['demo', 'benchmark', 'real'],
-            index=0,
-            format_func=lambda x: x.title() + (" ✓" if x=='demo' else " (requires setup)" if x=='real' else "")
+            options=['Demo', 'Real (Live Satellite Data)'],
+            index=0
         )
+        # Map UI choice to internal mode
+        data_source = 'demo' if data_source_ui == 'Demo' else 'live'
     
     with col4:
         model_mode = st.selectbox(
@@ -455,11 +457,16 @@ def run_analysis(target, radius, months_back, data_source, model_mode, labels):
         if "end_date" in fields:
             kwargs["end_date"] = end_date.strftime('%Y-%m-%d')
         
-        # Data source (might be called 'mode' in PipelineRequest)
-        if "data_source" in fields:
-            kwargs["data_source"] = data_source
-        elif "mode" in fields:
+        # Mode validation: only 'demo' or 'live' allowed
+        if data_source not in ['demo', 'live']:
+            st.error(f"❌ Invalid mode: {data_source}. Must be 'demo' or 'live'")
+            return
+        
+        # Data source (PipelineRequest uses 'mode')
+        if "mode" in fields:
             kwargs["mode"] = data_source
+        elif "data_source" in fields:
+            kwargs["data_source"] = data_source
         
         # Model mode
         if "model_mode" in fields:
@@ -524,11 +531,60 @@ def run_analysis(target, radius, months_back, data_source, model_mode, labels):
 
 
 def render_results(result, labels):
-    """Render structured analysis results."""
+    """
+    Render structured analysis results.
     
-    if not result or not result.success:
+    PROMPT 5: No-Fake-Live Contract enforcement:
+    - LIVE_FAILED → Only show failure reason, no results
+    - DEMO_OK → Show results with clear "Demo Mode" label
+    - LIVE_OK → Show results with provenance panel
+    """
+    
+    if not result:
         st.error("Analysis did not complete successfully")
-        if result and result.errors:
+        return
+    
+    # === HANDLE LIVE_FAILED ===
+    if result.status == 'LIVE_FAILED':
+        st.error("🔴 Live Analysis Failed")
+        st.markdown(f"""
+        <div class='result-section' style='background-color: #ffe6e6; border-left: 4px solid #dc3545;'>
+        <h4>Analysis could not be completed with live satellite data</h4>
+        <p><strong>Reason:</strong> {result.failure_reason}</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        if result.errors:
+            with st.expander("🔍 Error Details"):
+                for error in result.errors:
+                    st.code(error, language="text")
+        
+        if result.warnings:
+            with st.expander("⚠️ Warnings"):
+                for warning in result.warnings:
+                    st.warning(warning)
+        
+        # Show setup instructions
+        st.markdown("### 🛠️ Setup Required")
+        st.markdown("""
+        To enable live satellite analysis:
+        
+        1. **Sentinel Hub** (Required):
+           - Get free account at [sentinelhub.com](https://www.sentinel-hub.com/)
+           - Add `SENTINELHUB_CLIENT_ID` and `SENTINELHUB_CLIENT_SECRET` to Streamlit secrets
+        
+        2. **Google Earth Engine** (Optional but recommended):
+           - Install: `pip install earthengine-api`
+           - Authenticate: `earthengine authenticate`
+           - Or provide service account key in secrets
+        """)
+        
+        return  # No results to show for LIVE_FAILED
+    
+    # === HANDLE SUCCESS (DEMO_OK or LIVE_OK) ===
+    if not result.success:
+        st.error("Analysis did not complete successfully")
+        if result.errors:
             with st.expander("Errors"):
                 for error in result.errors:
                     st.error(error)
@@ -536,18 +592,50 @@ def render_results(result, labels):
     
     st.header(labels['results_title'])
     
+    # === LIVE PROOF PANEL (for LIVE_OK only) ===
+    if result.status == 'LIVE_OK' and result.provenance:
+        st.markdown("### 🛰️ Live Data Provenance")
+        prov = result.provenance
+        st.markdown(f"""
+        <div class='result-section' style='background-color: #e8f5e9; border-left: 4px solid #4caf50;'>
+        <strong>Provider:</strong> {prov.get('provider', 'Unknown')}<br>
+        <strong>Scenes Count:</strong> {prov.get('scenes_count', 0)}<br>
+        <strong>Time Range:</strong> {prov.get('time_range', ['N/A', 'N/A'])[0]} to {prov.get('time_range', ['N/A', 'N/A'])[1]}<br>
+        <strong>Resolution:</strong> {prov.get('resolution', (0, 0))[0]}m x {prov.get('resolution', (0, 0))[1]}m<br>
+        <strong>Cloud Stats:</strong> Min: {prov.get('cloud_stats', {}).get('min', 0):.1f}%, Mean: {prov.get('cloud_stats', {}).get('mean', 0):.1f}%, Max: {prov.get('cloud_stats', {}).get('max', 0):.1f}%<br>
+        <strong>GEE Available:</strong> {'✓ Yes' if prov.get('gee_available') else '✗ No'}
+        </div>
+        """, unsafe_allow_html=True)
+        st.divider()
+    
     # === 1. SOURCES USED ===
     with st.container():
         st.markdown(f"### {labels['sources_title']}")
-        st.markdown("""
-        <div class='result-section'>
-        <strong>Satellite Images:</strong> 14 scenes<br>
-        <strong>Providers:</strong> Sentinel-2, Landsat-8<br>
-        <strong>Time Range:</strong> Last 24 months<br>
-        <strong>References:</strong> 3 historical topographic maps<br>
-        <strong>Note:</strong> Demo mode with simulated data
-        </div>
-        """, unsafe_allow_html=True)
+        
+        if result.status == 'DEMO_OK':
+            st.markdown("""
+            <div class='result-section'>
+            <strong>⚠️ Demo Mode:</strong> Using simulated data<br>
+            <strong>Satellite Images:</strong> 14 synthetic scenes<br>
+            <strong>Providers:</strong> Mock data generator<br>
+            <strong>Time Range:</strong> Simulated 24 months<br>
+            <strong>Note:</strong> For demonstration purposes only. Enable live mode for real analysis.
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            # LIVE_OK - show real sources (if available in metadata)
+            st.markdown("""
+            <div class='result-section'>
+            <strong>Satellite Images:</strong> {scenes_count} scenes<br>
+            <strong>Providers:</strong> {providers}<br>
+            <strong>Time Range:</strong> {time_range}<br>
+            <strong>References:</strong> Multi-temporal analysis
+            </div>
+            """.format(
+                scenes_count=result.provenance.get('scenes_count', 0) if result.provenance else 0,
+                providers=result.provenance.get('provider', 'N/A') if result.provenance else 'N/A',
+                time_range=f"{result.provenance.get('time_range', ['N/A', 'N/A'])[0]} to {result.provenance.get('time_range', ['N/A', 'N/A'])[1]}" if result.provenance else 'N/A'
+            ), unsafe_allow_html=True)
     
     # === 2. ARCHAEOLOGICAL LIKELIHOOD ===
     with st.container():
