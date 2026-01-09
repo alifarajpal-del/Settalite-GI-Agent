@@ -344,7 +344,7 @@ class PipelineService:
                 end_dt = datetime.strptime(request.end_date, '%Y-%m-%d')
                 
                 # Search for scenes
-                scenes = sh_provider.search_scenes(bbox, start_dt, end_dt, max_cloud_coverage=20.0)
+                scenes = sh_provider.search_scenes(bbox, start_dt, end_dt, max_cloud_cover=20.0)
                 
                 if not scenes:
                     result.status = 'LIVE_FAILED'
