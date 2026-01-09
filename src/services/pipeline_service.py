@@ -320,92 +320,74 @@ class PipelineService:
                 ))
                 
             elif request.mode == 'live':
-                # Live mode: use real satellite providers (Sentinel Hub + GEE)
+                # PROMPT 3: Live mode with real Sentinel Hub download
                 self.logger.info("Using Live satellite providers (Sentinel Hub + GEE)")
                 
-                # Try Sentinel Hub first
-                try:
-                    from src.services.sentinelhub_fetcher import SentinelHubFetcher
-                    sh_fetcher = SentinelHubFetcher(self.config, self.logger)
-                    
-                    if not sh_fetcher.available:
-                        # Sentinel Hub not available - LIVE_FAILED
-                        result.status = 'LIVE_FAILED'
-                        result.failure_reason = 'SENTINELHUB_UNAVAILABLE: Install sentinelhub library or configure credentials'
-                        self.logger.error(result.failure_reason)
-                        result.errors.append(result.failure_reason)
-                        return result
-                    
-                    # Fetch scene metadata
-                    # Convert AOI geometry to bbox
-                    bbox = request.aoi_geometry.bounds  # (minx, miny, maxx, maxy)
-                    start_dt = datetime.strptime(request.start_date, '%Y-%m-%d')
-                    end_dt = datetime.strptime(request.end_date, '%Y-%m-%d')
-                    
-                    sh_result = sh_fetcher.fetch_scenes(bbox, start_dt, end_dt)
-                    
-                    if sh_result.status == 'LIVE_FAILED':
-                        # Sentinel Hub fetch failed - LIVE_FAILED
-                        result.status = 'LIVE_FAILED'
-                        result.failure_reason = sh_result.failure_reason
-                        self.logger.error(f"Sentinel Hub fetch failed: {sh_result.failure_reason}")
-                        result.errors.append(sh_result.failure_reason)
-                        return result
-                    
-                    # Store provenance
-                    result.provenance = {
-                        'provider': 'sentinelhub',
-                        'scenes_count': sh_result.scenes_count,
-                        'cloud_stats': sh_result.cloud_stats,
-                        'time_range': [sh_result.time_range[0].isoformat(), sh_result.time_range[1].isoformat()],
-                        'resolution': sh_result.resolution
-                    }
-                    
-                    # Try GEE for additional analysis (optional)
-                    try:
-                        from src.services.gee_analyzer import GoogleEarthEngineAnalyzer
-                        gee_analyzer = GoogleEarthEngineAnalyzer(self.config, self.logger)
-                        
-                        if gee_analyzer.available:
-                            gee_result = gee_analyzer.analyze_multitemporal(bbox, start_dt, end_dt)
-                            if gee_result.status == 'GEE_OK':
-                                result.provenance['gee_available'] = True
-                                result.provenance['gee_indicators'] = len(gee_result.indicators)
-                            else:
-                                result.warnings.append(f"GEE analysis unavailable: {gee_result.failure_reason}")
-                                result.provenance['gee_available'] = False
-                        else:
-                            result.warnings.append("GEE not available - analysis based on Sentinel Hub only")
-                            result.provenance['gee_available'] = False
-                    except ImportError:
-                        result.warnings.append("GEE library not installed - analysis based on Sentinel Hub only")
-                        result.provenance['gee_available'] = False
-                    
-                    # For now: Use mock data for processing but mark as LIVE_OK with real provenance
-                    # TODO: Actually download and process real imagery
-                    self.logger.info("✓ Real scene metadata fetched - using simulated processing for now")
-                    result.warnings.append("Note: Using simulated processing with real scene metadata. Full imagery download coming soon.")
-                    
-                    # Generate mock satellite data for processing
-                    mock_service = self._get_mock_service()
-                    mock_data = mock_service.generate_mock_satellite_data(width=100, height=100)
-                    bands_data = mock_data['bands']
-                    
-                    result.status = 'LIVE_OK'  # We have real provenance!
-                    result.step_completed = 'fetch'
-                    
-                except ImportError as e:
+                # Initialize Sentinel Hub Provider (PROMPT 3)
+                from src.providers import SentinelHubProvider
+                from src.provenance.run_manifest import DataSource, ProcessingStep
+                
+                sh_provider = SentinelHubProvider(self.config, self.logger)
+                
+                if not sh_provider.available:
+                    # Sentinel Hub not available - LIVE_FAILED
                     result.status = 'LIVE_FAILED'
-                    result.failure_reason = f'SENTINELHUB_MISSING: Install with pip install sentinelhub'
+                    result.failure_reason = 'SENTINELHUB_UNAVAILABLE: Check credentials or install sentinelhub library'
                     self.logger.error(result.failure_reason)
                     result.errors.append(result.failure_reason)
+                    manifest.set_failure(result.failure_reason)
                     return result
-                except Exception as e:
+                
+                # Convert AOI to bbox
+                bbox = request.aoi_geometry.bounds  # (minx, miny, maxx, maxy)
+                start_dt = datetime.strptime(request.start_date, '%Y-%m-%d')
+                end_dt = datetime.strptime(request.end_date, '%Y-%m-%d')
+                
+                # Search for scenes
+                scenes = sh_provider.search_scenes(bbox, start_dt, end_dt, max_cloud_coverage=20.0)
+                
+                if not scenes:
                     result.status = 'LIVE_FAILED'
-                    result.failure_reason = f'LIVE_FETCH_ERROR: {str(e)}'
+                    result.failure_reason = 'NO_SCENES_FOUND: No satellite imagery available for the specified AOI and time range'
                     self.logger.error(result.failure_reason)
                     result.errors.append(result.failure_reason)
+                    manifest.set_failure(result.failure_reason)
                     return result
+                
+                self.logger.info(f"Found {len(scenes)} scenes")
+                
+                # Download real bands (PROMPT 3)
+                band_result = sh_provider.fetch_band_stack(
+                    bbox=bbox,
+                    timestamps=[s['timestamp'] for s in scenes[:5]],  # Limit to 5 scenes for now
+                    resolution=10  # 10m resolution
+                )
+                
+                if not band_result.success:
+                    result.status = 'LIVE_FAILED'
+                    result.failure_reason = f'BAND_DOWNLOAD_FAILED: {band_result.error}'
+                    self.logger.error(result.failure_reason)
+                    result.errors.append(result.failure_reason)
+                    manifest.set_failure(result.failure_reason)
+                    return result
+                
+                # Extract bands
+                bands_data = band_result.bands
+                self.logger.info(f"✓ Downloaded real imagery: {bands_data.keys()}")
+                
+                # Add data source to manifest (PROMPT 2)
+                manifest.add_data_source(DataSource(
+                    provider='sentinelhub',
+                    collection='SENTINEL2_L2A',
+                    scene_ids=[s['id'] for s in scenes[:5]],
+                    timestamps=[s['timestamp'].isoformat() for s in scenes[:5]],
+                    api_endpoints=['https://services.sentinel-hub.com/api/v1/process'],
+                    total_scenes=len(scenes),
+                    processed_scenes=len(band_result.timestamps)
+                ))
+                
+                result.status = 'LIVE_OK'
+                result.step_completed = 'fetch'
             
             else:
                 error_msg = f"Invalid mode: {request.mode}. Must be 'demo' or 'live'"
@@ -434,8 +416,46 @@ class PipelineService:
         try:
             self.logger.info("STEP 2/5: Calculating spectral indices...")
             
-            processing_service = self._get_processing_service()
-            indices = processing_service.calculate_spectral_indices(bands_data)
+            # PROMPT 3: Use real NDVI/NDWI for live mode
+            if request.mode == 'live' and 'B04' in bands_data and 'B08' in bands_data:
+                # Compute real NDVI/NDWI from downloaded bands (PROMPT 3)
+                from src.providers import SentinelHubProvider
+                sh_provider = SentinelHubProvider(self.config, self.logger)
+                
+                # Compute NDVI and NDWI
+                ndvi = sh_provider.compute_ndvi(bands_data['B04'], bands_data['B08'])
+                ndwi = sh_provider.compute_ndwi(bands_data['B03'], bands_data['B08'])
+                
+                # Create indices dict with real computed values
+                indices = {
+                    'NDVI': ndvi,
+                    'NDWI': ndwi,
+                    'B04': bands_data['B04'],  # Red
+                    'B08': bands_data['B08']   # NIR
+                }
+                
+                # Add indicators to manifest (PROMPT 2)
+                from src.provenance.run_manifest import ComputedIndicator
+                manifest.add_indicator(ComputedIndicator(
+                    name='NDVI',
+                    formula='(NIR - RED) / (NIR + RED)',
+                    bands_used=['B08', 'B04'],
+                    temporal_coverage={'computed_scenes': len(band_result.timestamps)},
+                    computed_from_real_data=True
+                ))
+                manifest.add_indicator(ComputedIndicator(
+                    name='NDWI',
+                    formula='(GREEN - NIR) / (GREEN + NIR)',
+                    bands_used=['B03', 'B08'],
+                    temporal_coverage={'computed_scenes': len(band_result.timestamps)},
+                    computed_from_real_data=True
+                ))
+                
+                self.logger.info("✓ Computed real NDVI/NDWI from live imagery")
+            else:
+                # Demo mode or missing bands: use processing service
+                processing_service = self._get_processing_service()
+                indices = processing_service.calculate_spectral_indices(bands_data)
             
             if indices is None or not indices:
                 error_msg = "Failed to calculate spectral indices - no indices returned"
