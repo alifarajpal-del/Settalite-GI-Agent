@@ -47,6 +47,9 @@ config/config.yaml
 config/providers.yaml
 *.log
 
+# Streamlit Secrets - NEVER COMMIT
+.streamlit/secrets.toml
+
 # OS
 .DS_Store
 Thumbs.db
