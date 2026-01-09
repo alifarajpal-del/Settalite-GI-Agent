@@ -53,14 +53,21 @@ class GoogleEarthEngineAnalyzer:
         Initialize GEE analyzer.
         
         Args:
-            config: May contain gee.service_account_key path
+            config: Must contain gee.project_id for Earth Engine
             logger: Optional logger
         """
         self.logger = logger or logging.getLogger(__name__)
         self.available = False
+        self.config = config
         
         if not GEE_AVAILABLE:
             self.logger.warning("Earth Engine library not available - install with: pip install earthengine-api")
+            return
+        
+        # Get project ID from config
+        self.project_id = config.get('gee', {}).get('project_id')
+        if not self.project_id:
+            self.logger.warning("GEE project_id not configured")
             return
         
         # Try to initialize Earth Engine
@@ -69,15 +76,33 @@ class GoogleEarthEngineAnalyzer:
             try:
                 ee.Number(1).getInfo()
                 self.available = True
-                self.logger.info("✓ Earth Engine already authenticated")
+                self.logger.info(f"✓ Earth Engine already authenticated (project: {self.project_id})")
                 return
             except:
                 pass
             
-            # Try service account authentication
+            # Try service account authentication (from secrets)
+            service_account_json = config.get('gee', {}).get('service_account_json')
+            if service_account_json:
+                import json
+                credentials_dict = json.loads(service_account_json)
+                credentials = ee.ServiceAccountCredentials(
+                    credentials_dict['client_email'],
+                    key_data=service_account_json
+                )
+                ee.Initialize(credentials, project=self.project_id)
+                self.available = True
+                self.logger.info(f"✓ Earth Engine initialized with service account (project: {self.project_id})")
+                return
+            
+            # Try service account key file
             service_account_key = config.get('gee', {}).get('service_account_key')
             if service_account_key and os.path.exists(service_account_key):
                 credentials = ee.ServiceAccountCredentials(None, service_account_key)
+                ee.Initialize(credentials, project=self.project_id)
+                self.available = True
+                self.logger.info(f"✓ Earth Engine initialized with service account file (project: {self.project_id})")
+                return
                 ee.Initialize(credentials)
                 self.available = True
                 self.logger.info("✓ Earth Engine initialized with service account")
@@ -85,11 +110,12 @@ class GoogleEarthEngineAnalyzer:
             
             # Try default authentication (works on local dev)
             try:
-                ee.Initialize()
+                ee.Initialize(project=self.project_id)
                 self.available = True
-                self.logger.info("✓ Earth Engine initialized with default credentials")
-            except:
-                self.logger.warning("Earth Engine authentication failed - run 'earthengine authenticate' locally or provide service_account_key")
+                self.logger.info(f"✓ Earth Engine initialized with default credentials (project: {self.project_id})")
+            except Exception as e:
+                self.logger.warning(f"Earth Engine authentication failed: {e}")
+                self.logger.warning("Run 'earthengine authenticate' locally or provide service_account_json in secrets")
                 self.available = False
                 
         except Exception as e:

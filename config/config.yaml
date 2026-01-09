@@ -1,0 +1,100 @@
+app:
+  name: "Heritage Sentinel Pro"
+  version: "1.0.0"
+  debug: false
+  log_level: "INFO"
+
+satellite:
+  providers:
+    sentinel:
+      api_url: "https://scihub.copernicus.eu/dhus"
+      # Sentinel Hub credentials
+      instance_id: "1v9QzKh110t6DCaSb0k4bbWtrFu3uviK"
+      api_key: "sh-3900873f-13ec-492b-baec-c0dfc16084c7"
+      max_cloud_cover: 30
+      resolution: 10
+      bands:
+        optical: ["B02", "B03", "B04", "B08", "B11", "B12"]
+        sar: ["VV", "VH"]
+    
+    landsat:
+      collection: "LANDSAT_8_C1"
+      bands: ["B2", "B3", "B4", "B5", "B6", "B7"]
+    
+    planet:
+      enabled: false
+      item_type: "PSScene"
+
+# Google Earth Engine Configuration
+gee:
+  enabled: true
+  project_id: "concise-perigee-468806-m8"
+  project_name: "My Project 43136"
+  # Use service account for cloud deployment
+  # For local dev: run 'earthengine authenticate'
+  collections:
+    sentinel2: "COPERNICUS/S2_SR_HARMONIZED"
+    sentinel1: "COPERNICUS/S1_GRD"
+    landsat8: "LANDSAT/LC08/C02/T1_L2"
+  
+  max_cloud_cover: 20
+  min_images: 5  # Minimum images for multi-temporal analysis
+
+processing:
+  indices:
+    - name: "NDVI"
+      formula: "(NIR - RED) / (NIR + RED)"
+      threshold: 0.3
+    
+    - name: "NDWI"
+      formula: "(GREEN - NIR) / (GREEN + NIR)"
+      threshold: 0.2
+    
+    - name: "SAVI"
+      formula: "1.5 * ((NIR - RED) / (NIR + RED + 0.5))"
+    
+    - name: "NBR"
+      formula: "(NIR - SWIR2) / (NIR + SWIR2)"
+
+  anomaly_detection:
+    method: "isolation_forest"
+    contamination: 0.1
+    n_estimators: 100
+    features: ["NDVI", "NDWI", "B11", "B12"]
+
+  coordinate_extraction:
+    min_anomaly_area: 100  # pixels
+    confidence_threshold: 0.7
+    cluster_distance: 50  # meters
+
+output:
+  formats:
+    - "geojson"
+    - "kml"
+    - "shapefile"
+    - "csv"
+    - "geotiff"
+  
+  coordinate_systems:
+    - "EPSG:4326"  # WGS84
+    - "EPSG:32636"  # UTM Zone 36N
+    - "EPSG:3857"   # Web Mercator
+
+paths:
+  data_dir: "data"
+  raw_data: "data/raw"
+  processed_data: "data/processed"
+  outputs: "outputs"
+  exports: "exports"
+  temp: "temp"
+
+ui:
+  map:
+    default_zoom: 12
+    tile_layer: "OpenStreetMap"
+    max_points_display: 1000
+  
+  visualization:
+    colormap: "viridis"
+    opacity: 0.7
+    point_size: 5
