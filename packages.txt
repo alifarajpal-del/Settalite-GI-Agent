@@ -1,0 +1,13 @@
+# System packages required for Streamlit Cloud deployment
+# These are Ubuntu/Debian package names
+
+# Required for GeoPandas and spatial operations
+gdal-bin
+libgdal-dev
+libspatialindex-dev
+libgeos-dev
+libproj-dev
+
+# Required for image processing (if using opencv/rasterio)
+libgl1-mesa-glx
+libglib2.0-0
