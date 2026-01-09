@@ -133,10 +133,14 @@ class RunManifest:
         Check if archaeological likelihood can be computed.
         
         PROMPT 2: Strict policy - only if:
-        1. Status is SUCCESS
+        1. Status is SUCCESS (not DEMO_MODE)
         2. At least one indicator was computed from real data
         3. Data quality is acceptable
         """
+        # DEMO_MODE never allows likelihood computation
+        if self.status == ManifestStatus.DEMO_MODE:
+            return False
+        
         if self.status != ManifestStatus.SUCCESS:
             return False
         
@@ -194,7 +198,7 @@ def create_manifest(run_id: str, mode: str, request_params: Dict[str, Any]) -> R
         run_id=run_id,
         started_at=datetime.now().isoformat(),
         completed_at="",  # Will be set on completion
-        status=ManifestStatus.SUCCESS if mode == 'demo' else ManifestStatus.LIVE_FAILED,
+        status=ManifestStatus.DEMO_MODE if mode == 'demo' else ManifestStatus.LIVE_FAILED,
         mode=mode,
         request_params=request_params
     )

@@ -256,7 +256,21 @@ class PipelineService:
             PipelineResult: Standardized result object with data, stats, and errors
         """
         start_time = datetime.now()
-        result = PipelineResult(success=False, status='UNKNOWN')
+        run_id = f"run_{start_time.strftime('%Y%m%d_%H%M%S')}"
+        
+        # Create manifest (PROMPT 2)
+        from src.provenance import create_manifest
+        manifest = create_manifest(
+            run_id=run_id,
+            mode=request.mode,
+            request_params={
+                'start_date': request.start_date,
+                'end_date': request.end_date,
+                'aoi_bounds': str(request.aoi_geometry.bounds)
+            }
+        )
+        
+        result = PipelineResult(success=False, status='UNKNOWN', manifest=manifest)
         
         self.logger.info("="*60)
         self.logger.info("Starting Heritage Sentinel Pro Pipeline")
@@ -292,6 +306,18 @@ class PipelineService:
                 bands_data = mock_data['bands']
                 result.step_completed = 'fetch'
                 result.status = 'DEMO_OK'  # Clear demo labeling
+                
+                # Add mock data source to manifest (PROMPT 2)
+                from src.provenance.run_manifest import DataSource
+                manifest.add_data_source(DataSource(
+                    provider='mock',
+                    collection='MOCK_DATA',
+                    scene_ids=['demo_scene_001'],
+                    timestamps=[datetime.now().isoformat()],
+                    api_endpoints=[],
+                    total_scenes=1,
+                    processed_scenes=1
+                ))
                 
             elif request.mode == 'live':
                 # Live mode: use real satellite providers (Sentinel Hub + GEE)
