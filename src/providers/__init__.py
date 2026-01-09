@@ -9,9 +9,16 @@ from src.providers.sentinelhub_provider import (
     ImageryResult
 )
 
+from src.providers.gee_provider import (
+    GoogleEarthEngineProvider,
+    GEEResult
+)
+
 __all__ = [
     'SentinelHubProvider',
     'BandData',
     'IndexTimeseries',
-    'ImageryResult'
+    'ImageryResult',
+    'GoogleEarthEngineProvider',
+    'GEEResult'
 ]
