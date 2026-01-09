@@ -8,14 +8,18 @@ satellite:
   providers:
     sentinel:
       api_url: "https://scihub.copernicus.eu/dhus"
-      # Sentinel Hub credentials
-      instance_id: "1v9QzKh110t6DCaSb0k4bbWtrFu3uviK"
-      api_key: "sh-3900873f-13ec-492b-baec-c0dfc16084c7"
       max_cloud_cover: 30
       resolution: 10
       bands:
         optical: ["B02", "B03", "B04", "B08", "B11", "B12"]
         sar: ["VV", "VH"]
+
+# Sentinel Hub OAuth Credentials (add to Streamlit secrets)
+sentinelhub:
+  # Get these from: https://apps.sentinel-hub.com/dashboard/
+  # User Settings -> OAuth clients -> Create new OAuth client
+  client_id: null  # Add to .streamlit/secrets.toml or Streamlit Cloud
+  client_secret: null  # Add to .streamlit/secrets.toml or Streamlit Cloud
     
     landsat:
       collection: "LANDSAT_8_C1"

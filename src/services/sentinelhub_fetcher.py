@@ -202,7 +202,22 @@ class SentinelHubFetcher:
             )
             
         except Exception as e:
-            self.logger.error(f"Sentinel Hub fetch failed: {e}")
+            error_msg = str(e)
+            lower_msg = error_msg.lower()
+
+            if 'invalid_client' in lower_msg:
+                friendly_reason = (
+                    'AUTH_ERROR: Invalid Sentinel Hub OAuth client credentials. '
+                    'Verify SENTINELHUB_CLIENT_ID and SENTINELHUB_CLIENT_SECRET in Streamlit secrets.'
+                )
+            elif 'invalid_grant' in lower_msg:
+                friendly_reason = (
+                    'AUTH_ERROR: Sentinel Hub token grant failed. Ensure the OAuth client has the "default" scope and credentials are active.'
+                )
+            else:
+                friendly_reason = f'FETCH_ERROR: {error_msg}'
+
+            self.logger.error(f"Sentinel Hub fetch failed: {friendly_reason}")
             return FetchResult(
                 status='LIVE_FAILED',
                 scenes=[],
@@ -210,7 +225,7 @@ class SentinelHubFetcher:
                 cloud_stats={},
                 time_range=(start_date, end_date),
                 resolution=(0, 0),
-                failure_reason=f'FETCH_ERROR: {str(e)}'
+                failure_reason=friendly_reason
             )
     
     def test_connection(self) -> bool:

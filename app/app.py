@@ -370,9 +370,10 @@ def render_operations(labels):
         run_analysis(target, scan_radius, months_back, data_source, model_mode, labels)
     
     # === RESULTS SECTION ===
-    if st.session_state.last_result:
+    last_result = st.session_state.get('last_result')
+    if last_result:
         st.divider()
-        render_results(st.session_state.last_result, labels)
+        render_results(last_result, labels)
 
 
 def render_map(target, labels):

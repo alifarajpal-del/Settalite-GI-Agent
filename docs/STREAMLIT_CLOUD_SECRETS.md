@@ -17,31 +17,40 @@ Your credentials are stored locally in `.streamlit/secrets.toml` which is now **
 1. Click: **Secrets** tab
 2. You'll see a text editor
 
-### Step 3: Copy Your Local Secrets
-Open your local `.streamlit/secrets.toml` and copy the content:
+### Step 3: Get Sentinel Hub OAuth Credentials
+
+**IMPORTANT:** You need OAuth credentials, not API keys!
+
+1. Go to: https://apps.sentinel-hub.com/dashboard/
+2. Login or create free account
+3. Click: **User Settings** (top right)
+4. Click: **OAuth clients** tab
+5. Click: **+ Create new OAuth client**
+6. Name: `Heritage Sentinel Pro`
+7. Copy the **Client ID** and **Client Secret**
+
+### Step 4: Copy to Streamlit Secrets Editor
+
+Paste this format (replace with YOUR credentials):
 
 ```toml
-# Google Earth Engine Configuration
-[gee]
-project_id = "concise-perigee-468806-m8"
-project_name = "My Project 43136"
-
-# Sentinel Hub Configuration
+# Sentinel Hub OAuth Configuration
 [sentinelhub]
-client_id = "1v9QzKh110t6DCaSb0k4bbWtrFu3uviK"
-client_secret = "594cd8d4233042a857b4c6f5a9cd713b3b26f853"
-instance_id = "1v9QzKh110t6DCaSb0k4bbWtrFu3uviK"
+client_id = "YOUR_CLIENT_ID_HERE"
+client_secret = "YOUR_CLIENT_SECRET_HERE"
 
-# Google Cloud API
-[google_cloud]
-api_key = "AIzaSyCwKOIgf6t1KIJ3meY7Cysp-tRa_BBwO2g"
-project_id = "concise-perigee-468806-m8"
+# Google Earth Engine (optional)
+[gee]
+project_id = "your-gee-project-id"
 ```
 
-### Step 4: Paste and Save
+**⚠️ WARNING:** Do NOT use `api_key` or `instance_id` - these are OLD formats!
+
+### Step 5: Paste and Save
 1. Paste the content into Streamlit Cloud secrets editor
 2. Click **Save**
 3. Your app will automatically restart with new secrets
+4. Check logs for: `✓ Sentinel Hub OAuth credentials loaded`
 
 ---
 
@@ -85,16 +94,14 @@ Share this with collaborators (without actual values):
 
 ```toml
 # .streamlit/secrets.toml template
+# Get Sentinel Hub credentials from: https://apps.sentinel-hub.com/dashboard/
+[sentinelhub]
+client_id = "your-oauth-client-id"  # From OAuth clients page
+client_secret = "your-oauth-client-secret"  # From OAuth clients page
+
+# Optional: Google Earth Engine
 [gee]
 project_id = "your-gee-project-id"
-
-[sentinelhub]
-client_id = "your-sentinelhub-client-id"
-client_secret = "your-sentinelhub-client-secret"
-
-[google_cloud]
-api_key = "your-google-cloud-api-key"
-project_id = "your-project-id"
 ```
 
 ---

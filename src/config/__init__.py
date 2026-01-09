@@ -185,14 +185,20 @@ def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
             if 'sentinelhub' in st.secrets:
                 if 'sentinelhub' not in config:
                     config['sentinelhub'] = {}
-                config['sentinelhub'].update(dict(st.secrets['sentinelhub']))
+                # Convert Streamlit secrets to dict and merge
+                sh_secrets = dict(st.secrets['sentinelhub'])
+                config['sentinelhub'].update(sh_secrets)
+                
+                # Log success (without revealing secrets)
+                if sh_secrets.get('client_id') and sh_secrets.get('client_secret'):
+                    print("✓ Sentinel Hub OAuth credentials loaded from Streamlit secrets")
             
             # Merge gee secrets
             if 'gee' in st.secrets:
                 if 'gee' not in config:
                     config['gee'] = {}
                 config['gee'].update(dict(st.secrets['gee']))
-    except (ImportError, FileNotFoundError, AttributeError):
+    except (ImportError, FileNotFoundError, AttributeError) as e:
         # Not in Streamlit environment or secrets not configured
         pass
     
