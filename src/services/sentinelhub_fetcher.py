@@ -16,6 +16,7 @@ try:
         CRS, 
         DataCollection,
         SentinelHubRequest,
+        SentinelHubCatalog,
         MimeType,
         bbox_to_dimensions
     )
@@ -131,20 +132,73 @@ class SentinelHubFetcher:
             # Create bbox for Sentinel Hub
             sh_bbox = BBox(bbox=bbox, crs=CRS.WGS84)
             
-            # Query available scenes (metadata only, no imagery download yet)
-            # This is a simplified version - real implementation would use Catalog API
-            self.logger.info(f"Querying Sentinel-2 scenes for bbox {bbox}, {start_date} to {end_date}")
+            # Query available scenes using Catalog API
+            self.logger.info(f"Querying Sentinel-2 scenes for bbox {bbox}, {start_date.date()} to {end_date.date()}")
             
-            # TODO: Implement actual Sentinel Hub Catalog API query
-            # For now, return LIVE_FAILED with clear message
+            # Build catalog request
+            catalog = SentinelHubCatalog(config=self.config)
+            
+            # Search for Sentinel-2 L2A scenes
+            time_interval = (start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
+            
+            search_iterator = catalog.search(
+                DataCollection.SENTINEL2_L2A,
+                bbox=sh_bbox,
+                time=time_interval,
+                filter=f"eo:cloud_cover < {max_cloud_cover}"
+            )
+            
+            # Collect scene metadata
+            scenes = []
+            for item in search_iterator:
+                try:
+                    scene_meta = SceneMetadata(
+                        scene_id=item['id'],
+                        timestamp=datetime.fromisoformat(item['properties']['datetime'].replace('Z', '+00:00')),
+                        cloud_cover=item['properties'].get('eo:cloud_cover', 0),
+                        data_coverage=item['properties'].get('s2:data_coverage', 100),
+                        resolution=(10, 10),  # Sentinel-2 L2A default
+                        provider='sentinel2'
+                    )
+                    scenes.append(scene_meta)
+                except Exception as e:
+                    self.logger.warning(f"Failed to parse scene metadata: {e}")
+                    continue
+            
+            scenes_count = len(scenes)
+            self.logger.info(f"Found {scenes_count} Sentinel-2 scenes")
+            
+            # Check if we have enough scenes
+            if scenes_count < min_scenes:
+                return FetchResult(
+                    status='LIVE_FAILED',
+                    scenes=scenes,
+                    scenes_count=scenes_count,
+                    cloud_stats={},
+                    time_range=(start_date, end_date),
+                    resolution=(10, 10),
+                    failure_reason=f'INSUFFICIENT_COVERAGE: Found {scenes_count} scenes (minimum {min_scenes} required)'
+                )
+            
+            # Calculate cloud statistics
+            if scenes:
+                cloud_covers = [s.cloud_cover for s in scenes]
+                cloud_stats = {
+                    'min': min(cloud_covers),
+                    'max': max(cloud_covers),
+                    'mean': sum(cloud_covers) / len(cloud_covers)
+                }
+            else:
+                cloud_stats = {'min': 0, 'max': 0, 'mean': 0}
+            
+            # Success!
             return FetchResult(
-                status='LIVE_FAILED',
-                scenes=[],
-                scenes_count=0,
-                cloud_stats={},
+                status='LIVE_OK',
+                scenes=scenes,
+                scenes_count=scenes_count,
+                cloud_stats=cloud_stats,
                 time_range=(start_date, end_date),
-                resolution=(10, 10),
-                failure_reason='IMPLEMENTATION_PENDING: Sentinel Hub Catalog API integration in progress'
+                resolution=(10, 10)
             )
             
         except Exception as e:
