@@ -16,7 +16,13 @@ from pathlib import Path
 
 # Add project root to PYTHONPATH
 project_root = Path(__file__).parent
-sys.path.insert(0, str(project_root))
+src_path = project_root / "src"
+
+# Ensure project root and src are on PYTHONPATH for Streamlit Cloud
+for p in (project_root, src_path):
+    sp = str(p.resolve())
+    if sp not in sys.path:
+        sys.path.insert(0, sp)
 
 
 def is_streamlit_cloud():
