@@ -363,9 +363,11 @@ class PipelineService:
                     resolution=10  # 10m resolution
                 )
                 
-                if not band_result.success:
+                if band_result.status != 'SUCCESS':
                     result.status = 'LIVE_FAILED'
-                    result.failure_reason = f'BAND_DOWNLOAD_FAILED: {band_result.error}'
+                    # Prefer failure_reason from provider when available
+                    failure_msg = getattr(band_result, 'failure_reason', None) or getattr(band_result, 'error', None) or 'Unknown error'
+                    result.failure_reason = f'BAND_DOWNLOAD_FAILED: {failure_msg}'
                     self.logger.error(result.failure_reason)
                     result.errors.append(result.failure_reason)
                     manifest.set_failure(result.failure_reason)
