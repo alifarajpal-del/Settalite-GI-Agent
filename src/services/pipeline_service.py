@@ -359,7 +359,7 @@ class PipelineService:
                 # Download real bands (PROMPT 3)
                 band_result = sh_provider.fetch_band_stack(
                     bbox=bbox,
-                    timestamps=[s['timestamp'] for s in scenes[:5]],  # Limit to 5 scenes for now
+                    timestamps=[s['datetime'] for s in scenes[:5]],  # Limit to 5 scenes for now
                     resolution=10  # 10m resolution
                 )
                 
@@ -380,7 +380,7 @@ class PipelineService:
                     provider='sentinelhub',
                     collection='SENTINEL2_L2A',
                     scene_ids=[s['id'] for s in scenes[:5]],
-                    timestamps=[s['timestamp'].isoformat() for s in scenes[:5]],
+                    timestamps=[s['datetime'].isoformat() for s in scenes[:5]],
                     api_endpoints=['https://services.sentinel-hub.com/api/v1/process'],
                     total_scenes=len(scenes),
                     processed_scenes=len(band_result.timestamps)
