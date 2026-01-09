@@ -432,6 +432,16 @@ def render_results(result: PipelineResult, labels: dict):
 
 # === Main App ===
 def main():
+    # Ensure session state defaults exist even when run outside Streamlit CLI
+    if 'lang' not in st.session_state:
+        st.session_state.lang = 'en'
+    if 'last_result' not in st.session_state:
+        st.session_state.last_result = None
+    if 'last_request_params' not in st.session_state:
+        st.session_state.last_request_params = None
+    if 'model_mode' not in st.session_state:
+        st.session_state.model_mode = 'classic'
+
     # === DEBUG MODE: Sanity Check ===
     st.title("🚧 Debug Mode: Styles Disabled")
     st.write("✅ If you see this, the backend is working.")
