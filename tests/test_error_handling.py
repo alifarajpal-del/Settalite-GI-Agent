@@ -42,23 +42,24 @@ def test_error_handling():
             end_date = datetime.now()
             start_date = end_date - timedelta(days=90)
             
-            scenes, error = provider.search_scenes(bbox, start_date, end_date, max_cloud_cover=30)
-            
-            print(f"\n📊 النتائج:")
-            print(f"   - عدد المشاهد: {len(scenes)}")
-            print(f"   - رسالة الخطأ موجودة: {'✅' if error else '❌'}")
-            
-            if error:
+            try:
+                scenes = provider.search_scenes(bbox, start_date, end_date, max_cloud_cover=30)
+                print(f"\n📊 النتائج:")
+                print(f"   - عدد المشاهد: {len(scenes)}")
+                print(f"   - لم يحدث خطأ (غير متوقع)")
+            except Exception as error:
+                print(f"\n📊 النتائج:")
+                print(f"   - حدث استثناء: ✅")
                 print(f"\n📄 رسالة الخطأ:")
                 print("-" * 70)
-                print(error)
+                print(str(error))
                 print("-" * 70)
                 
                 # التحقق من احتواء الرسالة على معلومات مفيدة
+                error_str = str(error)
                 checks = {
-                    "يحتوي على '❌'": "❌" in error,
-                    "يحتوي على 'SentinelHub'": "sentinelhub" in error.lower(),
-                    "يحتوي على سبب": len(error) > 50,
+                    "يحتوي على 'SentinelHub'": "sentinelhub" in error_str.lower(),
+                    "يحتوي على سبب": len(error_str) > 20,
                 }
                 
                 print(f"\n✅ فحوصات الرسالة:")
@@ -104,26 +105,28 @@ def test_error_handling():
             
             petra_bbox = (35.42, 30.30, 35.47, 30.35)
             
-            scenes, error = provider.search_scenes(
-                petra_bbox,
-                start_date,
-                end_date,
-                max_cloud_cover=60
-            )
-            
-            print(f"\n📊 النتائج:")
-            print(f"   - عدد المشاهد: {len(scenes)}")
-            print(f"   - رسالة خطأ: {error if error else 'لا يوجد'}")
-            
-            if len(scenes) > 0:
-                print(f"\n✅ تم العثور على مشاهد!")
-                print(f"   - أول مشهد: {scenes[0]['id']}")
-                print(f"   - الغيوم: {scenes[0]['cloud_cover']:.1f}%")
-            else:
-                print(f"\n⚠️ لم يتم العثور على مشاهد")
-                if error:
-                    print(f"\nالسبب:")
-                    print(error[:200])
+            try:
+                scenes = provider.search_scenes(
+                    petra_bbox,
+                    start_date,
+                    end_date,
+                    max_cloud_cover=60
+                )
+                
+                print(f"\n📊 النتائج:")
+                print(f"   - عدد المشاهد: {len(scenes)}")
+                print(f"   - رسالة خطأ: لا يوجد")
+                
+                if len(scenes) > 0:
+                    print(f"\n✅ تم العثور على مشاهد!")
+                    print(f"   - أول مشهد: {scenes[0]['id']}")
+                    print(f"   - الغيوم: {scenes[0]['cloud_cover']:.1f}%")
+                else:
+                    print(f"\n⚠️ لم يتم العثور على مشاهد")
+            except Exception as error:
+                print(f"\n📊 النتائج:")
+                print(f"   - عدد المشاهد: 0")
+                print(f"   - رسالة خطأ: {str(error)[:100]}")
         
         # النتيجة النهائية
         print("\n" + "=" * 70)
@@ -131,11 +134,11 @@ def test_error_handling():
         print("=" * 70)
         
         print("\n✅ التحسينات المنفذة:")
-        print("   1. search_scenes تُرجع (scenes, error_message)")
-        print("   2. رسائل خطأ واضحة مع رموز emoji")
-        print("   3. تشخيص نوع الخطأ (اتصال، تخويل، بيانات مفقودة)")
-        print("   4. اقتراحات عملية لحل المشكلة")
-        print("   5. pipeline_service يحول الأخطاء إلى LIVE_FAILED")
+        print("   1. search_scenes ترجع List[dict] وترفع استثناء عند الفشل")
+        print("   2. رسائل خطأ واضحة مع تفاصيل الاستثناء")
+        print("   3. pipeline_service يلتقط الاستثناء ويحوله إلى LIVE_FAILED")
+        print("   4. fallback search بدون فلتر عند فشل CQL2")
+        print("   5. تطبيع STAC items مع الاحتفاظ بـ raw")
         
         return True
         

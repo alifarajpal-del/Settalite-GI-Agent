@@ -42,7 +42,7 @@ def test_no_fake_results_policy():
     # Create mock provider that returns zero scenes
     mock_provider = Mock()
     mock_provider.available = True
-    mock_provider.search_scenes = Mock(return_value=([], None))  # ZERO SCENES, NO ERROR
+    mock_provider.search_scenes = Mock(return_value=[])  # ZERO SCENES
     
     # Test AOI (Jordan archaeological site)
     test_aoi = Point(35.4444, 31.9522)  # Petra coordinates

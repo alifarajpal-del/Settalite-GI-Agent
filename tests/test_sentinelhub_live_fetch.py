@@ -63,15 +63,15 @@ def test_sentinelhub_search_and_download():
     
     # STEP 1: Search scenes
     print(f"\n--- STEP 1: Search Scenes ---")
-    scenes, error = provider.search_scenes(
-        bbox=bbox,
-        start_date=start_date,
-        end_date=end_date,
-        max_cloud_cover=max_cloud_cover
-    )
-    
-    if error:
-        raise AssertionError(f"Scene search failed: {error}")
+    try:
+        scenes = provider.search_scenes(
+            bbox=bbox,
+            start_date=start_date,
+            end_date=end_date,
+            max_cloud_cover=max_cloud_cover
+        )
+    except Exception as e:
+        raise AssertionError(f"Scene search failed: {e}")
     
     assert isinstance(scenes, list), f"Expected list, got {type(scenes).__name__}"
     assert len(scenes) > 0, "No scenes found - increase time range or cloud cover"

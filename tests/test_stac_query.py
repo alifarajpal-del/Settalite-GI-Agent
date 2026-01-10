@@ -58,21 +58,20 @@ def test_stac_query():
         print("=" * 60)
         
         # البحث عن المشاهد
-        scenes, search_error = provider.search_scenes(
-            bbox=bbox,
-            start_date=start_date,
-            end_date=end_date,
-            max_cloud_cover=max_cloud_cover
-        )
-        
-        print(f"\n📊 النتائج:")
-        
-        if search_error:
+        try:
+            scenes = provider.search_scenes(
+                bbox=bbox,
+                start_date=start_date,
+                end_date=end_date,
+                max_cloud_cover=max_cloud_cover
+            )
+        except Exception as search_error:
             print(f"\n❌ فشل البحث:")
-            print(search_error)
+            print(str(search_error))
             print("\n✅ معايير STAC محدثة والكود يعمل (الخطأ من الخدمة/الشبكة)")
             return True
         
+        print(f"\n📊 النتائج:")
         print(f"   - عدد المشاهد: {len(scenes)}")
         
         if scenes:

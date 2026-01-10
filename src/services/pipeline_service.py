@@ -378,19 +378,17 @@ class PipelineService:
                 start_dt = datetime.strptime(request.start_date, '%Y-%m-%d')
                 end_dt = datetime.strptime(request.end_date, '%Y-%m-%d')
                 
-                # Search for scenes (use configurable max_cloud_cover from request)
-                # Returns: (scenes_list, error_message)
-                scenes, search_error = sh_provider.search_scenes(bbox, start_dt, end_dt, max_cloud_cover=request.max_cloud_cover)
-                
-                # Check if search failed (not just empty results)
-                if search_error:
+                # Search for scenes (raises exception on failure)
+                try:
+                    scenes = sh_provider.search_scenes(bbox, start_dt, end_dt, max_cloud_cover=request.max_cloud_cover)
+                except Exception as search_error:
                     result.status = 'LIVE_FAILED'
                     result.success = False
-                    result.failure_reason = search_error
+                    result.failure_reason = f"Scene search failed: {str(search_error)}"
                     result.data_quality = {'total_scenes': 0, 'processed_scenes': 0}
                     result.dataframe = None
                     result.stats = {'num_sites': 0, 'likelihood': None}
-                    self.logger.error(f"❌ Scene search failed: {search_error}")
+                    self.logger.error(f"❌ Scene search failed: {search_error}", exc_info=True)
                     return result
                 
                 # NO FAKE RESULTS: If no scenes, return NO_DATA immediately
