@@ -197,6 +197,21 @@ class CoordinateExtractor:
             # تطبيق تجميع DBSCAN للتخلص من الزوائد
             gdf = self._apply_clustering(gdf)
             
+            # تطبيع أسماء الأعمدة للتوافق مع schema_normalizer
+            gdf = gdf.rename(columns={
+                'cluster_id': 'id',
+                'centroid_lon': 'lon',
+                'centroid_lat': 'lat'
+            })
+            
+            # إضافة عمود priority بناءً على الثقة
+            if 'confidence' in gdf.columns:
+                gdf['priority'] = gdf['confidence'].apply(
+                    lambda x: 'high' if x >= 0.7 else ('medium' if x >= 0.4 else 'low')
+                )
+            else:
+                gdf['priority'] = 'medium'
+            
             self.logger.info(f"تم استخراج {len(gdf)} إحداثية دقيقة")
             return gdf
         else:
