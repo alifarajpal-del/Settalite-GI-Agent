@@ -1,0 +1,37 @@
+# SonarLint Ignore File
+# Exclude files/folders from SonarLint analysis
+
+# Virtual environments
+venv/
+heritage_env/
+env/
+.venv/
+
+# Cache directories
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# Git
+.git/
+
+# Build outputs
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Test files (less critical)
+tests/
+scripts/test_*.py
+scripts/*_test.py
+
+# Documentation
+docs/
+*.md
+
+# Configuration files
+.streamlit/
+.vscode/

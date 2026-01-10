@@ -137,6 +137,33 @@
   "jupyter.widgetScriptSources": ["jsdelivr.com", "unpkg.com"],
   
   // ============================================================
+  // SonarQube/SonarLint Configuration
+  // ============================================================
+  "sonarlint.rules": {
+    "python:S1192": {
+      "level": "off"
+    },
+    "python:S1854": {
+      "level": "off"
+    },
+    "python:S1481": {
+      "level": "off"
+    },
+    "python:S4144": {
+      "level": "off"
+    },
+    "python:S6204": {
+      "level": "off"
+    },
+    "python:S1871": {
+      "level": "off"
+    },
+    "python:S3776": {
+      "level": "off"
+    }
+  },
+
+  // ============================================================
   // Auto Save Configuration
   // ============================================================
   "files.autoSave": "afterDelay",

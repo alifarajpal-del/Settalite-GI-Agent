@@ -1,3 +1,49 @@
+Analysis Results
+🛰️ Live Data Provenance
+Provider: sentinelhub
+Scenes Count: 86
+Time Range: 2025-07-13T00:00:00 to 2026-01-09T00:00:00
+Resolution: 10m x 10m
+Cloud Stats: Min: 0.0%, Mean: 2.8%, Max: 18.6%
+GEE Available: ✗ No
+1. Sources Used
+Satellite Images: 86 scenes
+Providers: sentinelhub
+Time Range: 2025-07-13T00:00:00 to 2026-01-09T00:00:00
+References: Multi-temporal analysis
+2. Archaeological Likelihood
+🔴 High Likelihood: 87%
+Based on spectral variance (NDVI, NDWI) and anomaly detection, a rectangular geometric anomaly was detected that is inconsistent with the natural geological patterns of the area.
+
+Interpretation: Pattern suggests buried structures at 50-120cm depth, causing moisture retention visible in thermal mapping.
+
+⚠️ These are indirect indicators requiring expert field verification and proper archaeological permits.
+
+3. Evidence & Heatmap
+Key Evidence:
+
+NDVI anomaly cluster (±0.15 variance)
+Thermal signature consistent with subsurface voids
+Geometric regularity (20m × 30m rectangular pattern)
+Soil moisture retention pattern
+Heatmap:
+
+🗺️ Heatmap overlay would be rendered here with folium HeatMap layer
+
+Intensity = f(confidence, anomaly_score, density)
+
+4. Recommended Area of Interest (AOI)
+📍 Recommended Area of Interest
+Reference Point (Centroid): 31.95245°N, 35.23310°E
+
+AOI Geometry: Rectangular polygon (20m × 30m)
+
+Uncertainty Radius: ±25m
+
+Description: Northeast corner of apparent rectangular structure. Southern approach recommended to avoid modern debris.
+
+⚠️ This is a recommended investigation area, not an excavation target. All fieldwork requires proper permits and expert supervision.
+
 # 🔐 How to Add Secrets to Streamlit Cloud
 
 ## ⚠️ NEVER Commit secrets.toml to Git!

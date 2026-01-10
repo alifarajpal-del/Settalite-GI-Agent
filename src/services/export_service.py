@@ -85,9 +85,9 @@ class ExportService:
                     # Quick test
                     is_valid = quick_geojson_test(geojson_bytes)
                     if is_valid:
-                        logger.info(f"✓ GeoJSON validation passed")
+                        logger.info("✓ GeoJSON validation passed")
                     else:
-                        logger.warning(f"⚠ GeoJSON validation failed - file may not open correctly")
+                        logger.warning("⚠ GeoJSON validation failed - file may not open correctly")
                     
                     # Log statistics
                     stats = get_geojson_statistics(geojson_bytes)

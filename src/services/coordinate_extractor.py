@@ -143,7 +143,7 @@ class CoordinateExtractor:
         features = []
         for label in range(1, num_features + 1):
             # إحداثيات البكسلات للمنطقة
-            y_coords, x_coords = np.where(labeled_array == label)
+            y_coords, x_coords = np.nonzero(labeled_array == label)
             
             # فلترة المناطق الصغيرة
             min_area = self.config['processing']['coordinate_extraction']['min_anomaly_area']

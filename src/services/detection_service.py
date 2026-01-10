@@ -49,7 +49,7 @@ class AnomalyDetectionService:
         
         # تطبيع البيانات
         scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X.reshape(-1, X.shape[-1]))
+        x_scaled = scaler.fit_transform(X.reshape(-1, X.shape[-1]))
         
         # تطبيق الخوارزمية
         if algorithm == 'isolation_forest':
@@ -68,7 +68,7 @@ class AnomalyDetectionService:
             model = IsolationForest(contamination=contamination, random_state=42)
         
         # التنبؤ
-        predictions = model.fit_predict(X_scaled)
+        predictions = model.fit_predict(x_scaled)
         
         # تحويل إلى خريطة شذوذ (use original shape)
         anomaly_map = predictions.reshape(original_shape)
@@ -76,7 +76,7 @@ class AnomalyDetectionService:
         
         # حساب درجة الشذوذ
         if hasattr(model, 'score_samples'):
-            anomaly_scores = -model.score_samples(X_scaled)
+            anomaly_scores = -model.score_samples(x_scaled)
             anomaly_surface = anomaly_scores.reshape(original_shape)
             anomaly_surface = (anomaly_surface - anomaly_surface.min()) / (anomaly_surface.max() - anomaly_surface.min())
         else:

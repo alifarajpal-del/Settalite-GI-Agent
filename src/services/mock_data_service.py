@@ -110,7 +110,7 @@ class MockDataService:
         anomaly_map = np.zeros((height, width))
         
         # إضافة مناطق شاذة (دوائر بأنماط مختلفة)
-        for i in range(num_anomalies):
+        for _ in range(num_anomalies):
             center_x = np.random.randint(20, width-20)
             center_y = np.random.randint(20, height-20)
             radius = np.random.randint(8, 25)

@@ -8,7 +8,11 @@ import pyproj
 from typing import Tuple, List, Union
 import geopandas as gpd
 
-def calculate_area_meters(geometry, crs: str = "EPSG:4326") -> float:
+# Constants
+EPSG_4326 = "EPSG:4326"  # WGS84
+EPSG_3857 = "EPSG:3857"  # Web Mercator
+
+def calculate_area_meters(geometry, crs: str = EPSG_4326) -> float:
     """
     حساب مساحة geometry بالمتر المربع
     
@@ -19,11 +23,11 @@ def calculate_area_meters(geometry, crs: str = "EPSG:4326") -> float:
     Returns:
         المساحة بالمتر المربع
     """
-    if crs == "EPSG:4326":
+    if crs == EPSG_4326:
         # تحويل إلى نظام متري (Web Mercator)
         project = pyproj.Transformer.from_crs(
-            "EPSG:4326",
-            "EPSG:3857",
+            EPSG_4326,
+            EPSG_3857,
             always_xy=True
         ).transform
         
@@ -35,7 +39,7 @@ def calculate_area_meters(geometry, crs: str = "EPSG:4326") -> float:
 def calculate_distance_meters(
     point1: Tuple[float, float],
     point2: Tuple[float, float],
-    crs: str = "EPSG:4326"
+    crs: str = EPSG_4326
 ) -> float:
     """
     حساب المسافة بين نقطتين بالمتر
@@ -48,7 +52,7 @@ def calculate_distance_meters(
     Returns:
         المسافة بالمتر
     """
-    if crs == "EPSG:4326":
+    if crs == EPSG_4326:
         # استخدام صيغة Haversine
         lon1, lat1 = point1
         lon2, lat2 = point2
@@ -68,7 +72,7 @@ def calculate_distance_meters(
         # حساب مباشر للأنظمة المترية
         return np.sqrt((point2[0] - point1[0])**2 + (point2[1] - point1[1])**2)
 
-def create_buffer(geometry, distance_meters: float, crs: str = "EPSG:4326"):
+def create_buffer(geometry, distance_meters: float, crs: str = EPSG_4326):
     """
     إنشاء منطقة عازلة حول geometry
     
@@ -80,11 +84,11 @@ def create_buffer(geometry, distance_meters: float, crs: str = "EPSG:4326"):
     Returns:
         geometry جديد مع المنطقة العازلة
     """
-    if crs == "EPSG:4326":
-        # تحويل إلى نظام متري
+    if crs == EPSG_4326:
+        # تحويل لنظام متري
         project_to_metric = pyproj.Transformer.from_crs(
-            "EPSG:4326",
-            "EPSG:3857",
+            EPSG_4326,
+            EPSG_3857,
             always_xy=True
         ).transform
         
@@ -126,7 +130,7 @@ def reproject_geometry(geometry, from_crs: str, to_crs: str):
 def create_grid(
     bounds: Tuple[float, float, float, float],
     cell_size: float,
-    crs: str = "EPSG:4326"
+    crs: str = EPSG_4326
 ) -> gpd.GeoDataFrame:
     """
     إنشاء شبكة من المربعات
