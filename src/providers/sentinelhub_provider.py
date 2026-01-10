@@ -92,7 +92,9 @@ class SentinelHubProvider:
         self.sh_config.sh_client_secret = client_secret
         
         self.available = True
-        self.logger.info("✓ Sentinel Hub provider initialized")
+        self.logger.info("✓ Sentinel Hub provider initialized successfully")
+        self.logger.info(f"  Client ID: {client_id[:10]}...")
+        self.logger.info(f"  Ready to search and download Sentinel-2 imagery")
     
     def search_scenes(
         self,
@@ -117,11 +119,24 @@ class SentinelHubProvider:
             
             time_interval = (start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
             
+            # Calculate bbox size
+            bbox_width = bbox[2] - bbox[0]
+            bbox_height = bbox[3] - bbox[1]
+            bbox_area_km2 = bbox_width * bbox_height * 111 * 111  # rough approximation
+            
             # Log search parameters
-            self.logger.info(f"Searching Sentinel-2 scenes:")
-            self.logger.info(f"  AOI: {bbox}")
-            self.logger.info(f"  Time: {time_interval[0]} to {time_interval[1]}")
-            self.logger.info(f"  Max cloud cover: {max_cloud_cover}%")
+            self.logger.info(f"🔍 Searching Sentinel-2 scenes:")
+            self.logger.info(f"  📍 AOI Bounds: ({bbox[0]:.4f}, {bbox[1]:.4f}) to ({bbox[2]:.4f}, {bbox[3]:.4f})")
+            self.logger.info(f"  📐 AOI Size: {bbox_width:.4f}° x {bbox_height:.4f}° (~{bbox_area_km2:.0f} km²)")
+            self.logger.info(f"  📅 Time Range: {time_interval[0]} to {time_interval[1]}")
+            self.logger.info(f"  ☁️ Max Cloud Cover: {max_cloud_cover}%")
+            self.logger.info(f"  📡 Collection: SENTINEL2_L2A")
+            
+            # Warn if bbox is too small or too large
+            if bbox_area_km2 < 1:
+                self.logger.warning(f"⚠️ AOI is very small ({bbox_area_km2:.2f} km²) - may not cover a full Sentinel-2 tile")
+            elif bbox_area_km2 > 50000:
+                self.logger.warning(f"⚠️ AOI is very large ({bbox_area_km2:.0f} km²) - search may be slow")
             
             search_iterator = catalog.search(
                 DataCollection.SENTINEL2_L2A,

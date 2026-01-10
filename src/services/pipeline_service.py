@@ -343,6 +343,15 @@ class PipelineService:
                 
                 # Convert AOI to bbox
                 bbox = request.aoi_geometry.bounds  # (minx, miny, maxx, maxy)
+                
+                # Log AOI details for debugging
+                self.logger.info(f"AOI Geometry Type: {type(request.aoi_geometry).__name__}")
+                self.logger.info(f"AOI Bounds (minx, miny, maxx, maxy): {bbox}")
+                self.logger.info(f"AOI Center: ({(bbox[0]+bbox[2])/2:.6f}, {(bbox[1]+bbox[3])/2:.6f})")
+                bbox_width = bbox[2] - bbox[0]
+                bbox_height = bbox[3] - bbox[1]
+                self.logger.info(f"AOI Size: {bbox_width:.6f}° x {bbox_height:.6f}° (~{bbox_width*111:.1f}km x {bbox_height*111:.1f}km)")
+                
                 start_dt = datetime.strptime(request.start_date, '%Y-%m-%d')
                 end_dt = datetime.strptime(request.end_date, '%Y-%m-%d')
                 
