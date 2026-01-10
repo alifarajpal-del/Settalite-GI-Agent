@@ -64,7 +64,6 @@ class ArchaeologyScorer:
         gdf: GeoDataFrame,
         indices: Dict[str, np.ndarray],
         anomaly_map: np.ndarray,
-        aoi_geometry,
         **kwargs
     ) -> GeoDataFrame:
         """
@@ -252,8 +251,8 @@ class ArchaeologyScorer:
     
     def _score_landform(
         self,
-        geometry,
-        elevation: np.ndarray
+        _,
+        __: np.ndarray
     ) -> float:
         """
         Score site suitability based on landform.
@@ -309,7 +308,6 @@ class ArchaeologyScorer:
         
         false_positives = len(gdf) - true_positives if gdf is not None else 0
         false_negatives = len(known_sites) - len(matched_known)
-        true_negatives = 0  # Not applicable in this context
         
         # Calculate metrics
         precision = (

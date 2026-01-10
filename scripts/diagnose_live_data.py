@@ -22,9 +22,10 @@ def diagnose_data_shapes():
     height, width = 100, 100
     
     # Simulate band data (time, height, width)
-    b03_3d = np.random.rand(timesteps, height, width).astype(np.float32)
-    b04_3d = np.random.rand(timesteps, height, width).astype(np.float32)
-    b08_3d = np.random.rand(timesteps, height, width).astype(np.float32)
+    rng = np.random.default_rng(42)
+    b03_3d = rng.random((timesteps, height, width), dtype=np.float32)
+    b04_3d = rng.random((timesteps, height, width), dtype=np.float32)
+    b08_3d = rng.random((timesteps, height, width), dtype=np.float32)
     
     print(f"  B03 shape: {b03_3d.shape} (time, h, w)")
     print(f"  B04 shape: {b04_3d.shape}")
@@ -35,7 +36,7 @@ def diagnose_data_shapes():
     b04_2d = np.mean(b04_3d, axis=0)
     b08_2d = np.mean(b08_3d, axis=0)
     
-    print(f"\n  After mean composite:")
+    print("\n  After mean composite:")
     print(f"  B03 shape: {b03_2d.shape} ✓")
     print(f"  B04 shape: {b04_2d.shape} ✓")
     print(f"  B08 shape: {b08_2d.shape} ✓")
@@ -85,40 +86,40 @@ def diagnose_data_shapes():
     print(f"  Original shape stored: {original_shape} ✓")
     
     # Reshape for sklearn
-    X_reshaped = X.reshape(-1, X.shape[-1])
-    print(f"  Reshaped for sklearn: {X_reshaped.shape} (samples, features) ✓")
+    x_reshaped = X.reshape(-1, X.shape[-1])
+    print(f"  Reshaped for sklearn: {x_reshaped.shape} (samples, features) ✓")
     
     # Validate reshape
-    assert X_reshaped.shape[0] == height * width
-    assert X_reshaped.shape[1] == len(indices)
+    assert x_reshaped.shape[0] == height * width
+    assert x_reshaped.shape[1] == len(indices)
     
     # Test 3: Handle NaN values correctly
     print("\n[Test 3] NaN handling:")
     
     # Add some NaN values
-    X_with_nan = X.copy()
-    X_with_nan[10:20, 30:40, 0] = np.nan  # Add NaN to first feature
+    x_with_nan = X.copy()
+    x_with_nan[10:20, 30:40, 0] = np.nan  # Add NaN to first feature
     
-    n_nan_before = np.sum(np.isnan(X_with_nan))
+    n_nan_before = np.sum(np.isnan(x_with_nan))
     print(f"  NaN values before: {n_nan_before}")
     
     # Replace NaN properly
-    X_clean = X_with_nan.copy()
-    for i in range(X_clean.shape[-1]):
-        channel = X_clean[:, :, i]
+    x_clean = x_with_nan.copy()
+    for i in range(x_clean.shape[-1]):
+        channel = x_clean[:, :, i]
         channel_mean = np.nanmean(channel)
         if np.isnan(channel_mean):
             channel_mean = 0.0
-        X_clean[:, :, i] = np.where(np.isnan(channel), channel_mean, channel)
+        x_clean[:, :, i] = np.where(np.isnan(channel), channel_mean, channel)
     
-    n_nan_after = np.sum(np.isnan(X_clean))
+    n_nan_after = np.sum(np.isnan(x_clean))
     print(f"  NaN values after: {n_nan_after} {'✓' if n_nan_after == 0 else '✗'}")
     
     # Test 4: Reshape predictions back to 2D
     print("\n[Test 4] Prediction reshaping:")
     
     # Simulate predictions (1D array)
-    predictions = np.random.choice([-1, 1], size=height * width)
+    predictions = rng.choice([-1, 1], size=height * width)
     print(f"  Predictions shape: {predictions.shape} (1D) ✓")
     
     # Reshape to original
@@ -130,9 +131,9 @@ def diagnose_data_shapes():
     # Test 5: Single timestamp data
     print("\n[Test 5] Single timestamp data (2D) handling:")
     
-    b03_single = np.random.rand(height, width).astype(np.float32)
-    b04_single = np.random.rand(height, width).astype(np.float32)
-    b08_single = np.random.rand(height, width).astype(np.float32)
+    b03_single = rng.random((height, width), dtype=np.float32)
+    b04_single = rng.random((height, width), dtype=np.float32)
+    b08_single = rng.random((height, width), dtype=np.float32)
     
     print(f"  B03 shape: {b03_single.shape} (already 2D) ✓")
     print(f"  B04 shape: {b04_single.shape} ✓")

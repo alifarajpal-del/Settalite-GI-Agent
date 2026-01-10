@@ -80,7 +80,7 @@ def test_band_download(provider):
         )
         
         if result.status == 'SUCCESS':
-            print(f"   ✓ Downloaded successfully")
+            print("   ✓ Downloaded successfully")
             print(f"   Scenes processed: {result.scenes_processed}")
             print(f"   Bands: {list(result.bands.keys())}")
             
@@ -118,7 +118,7 @@ def test_ndvi_computation(provider, imagery_result):
         ndvi = provider.compute_ndvi(red_band, nir_band)
         
         if ndvi.computed_from_real_data:
-            print(f"   ✓ NDVI computed successfully")
+            print("   ✓ NDVI computed successfully")
             print(f"   Formula: {ndvi.formula}")
             print(f"   Shape: {ndvi.data.shape}")
             print(f"   Overall mean: {ndvi.stats['overall']['mean']:.3f}")
@@ -153,7 +153,7 @@ def test_ndvi_values_reasonable(provider, imagery_result):
         data_max = ndvi.stats['overall']['max']
         
         if data_min >= -1 and data_max <= 1:
-            print(f"   ✓ NDVI values in valid range [-1, 1]")
+            print("   ✓ NDVI values in valid range [-1, 1]")
             print(f"   Actual range: [{data_min:.3f}, {data_max:.3f}]")
             return True
         else:

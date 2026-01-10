@@ -58,7 +58,7 @@ class GoogleEarthEngineProvider:
                 self.available = True
                 self.logger.info("✓ GEE already initialized")
                 return
-            except:
+            except Exception:
                 pass  # Not initialized yet
             
             # Try to initialize with credentials
@@ -81,7 +81,7 @@ class GoogleEarthEngineProvider:
                 self.logger.info("✓ GEE initialized (default auth)")
                 return
             except Exception as e:
-                self.failure_reason = f"Authentication required: run 'earthengine authenticate' locally"
+                self.failure_reason = "Authentication required: run 'earthengine authenticate' locally"
                 self.logger.info(f"GEE unavailable: {self.failure_reason}")
                 
         except Exception as e:
@@ -129,7 +129,7 @@ class GoogleEarthEngineProvider:
             geometry = ee.Geometry.Rectangle([bbox[0], bbox[1], bbox[2], bbox[3]])
             
             # Load Sentinel-2 collection
-            s2 = (ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
+            s2 = (ee.ImageCollection(self.S2_COLLECTION)
                 .filterBounds(geometry)
                 .filterDate(start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
                 .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', max_cloud_cover)))
@@ -192,7 +192,7 @@ class GoogleEarthEngineProvider:
             geometry = ee.Geometry.Rectangle([bbox[0], bbox[1], bbox[2], bbox[3]])
             
             # Load Sentinel-2
-            s2 = (ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
+            s2 = (ee.ImageCollection(self.S2_COLLECTION)
                 .filterBounds(geometry)
                 .filterDate(start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
                 .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', max_cloud_cover)))
@@ -276,7 +276,7 @@ class GoogleEarthEngineProvider:
             geometry = ee.Geometry.Rectangle([bbox[0], bbox[1], bbox[2], bbox[3]])
             
             # Load collection
-            s2 = (ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
+            s2 = (ee.ImageCollection(self.S2_COLLECTION)
                 .filterBounds(geometry)
                 .filterDate(start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
                 .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 20)))

@@ -79,11 +79,11 @@ def check_mock_data_service():
             if isinstance(mock_aoi, dict) and 'geometry' in mock_aoi:
                 success.append("Mock AOI")
             else:
-                print(colored("  ⚠️  AOI format unexpected", Colors.YELLOW))
-                warnings.append("AOI format")
+                print(colored(WARN_AOI_FORMAT_UNEXPECTED, Colors.YELLOW))
+                warnings.append(WARN_AOI_FORMAT)
         except Exception:
-            print(colored("  ⚠️  AOI format unexpected", Colors.YELLOW))
-            warnings.append("AOI format")
+            print(colored(WARN_AOI_FORMAT_UNEXPECTED, Colors.YELLOW))
+            warnings.append(WARN_AOI_FORMAT)
         
         # Try detections
         try:
@@ -91,11 +91,11 @@ def check_mock_data_service():
             if isinstance(detections, object):
                 success.append("Detections")
             else:
-                print(colored("  ⚠️  Detections format unexpected", Colors.YELLOW))
-                warnings.append("Detections format")
+                print(colored(WARN_DETECTIONS_FORMAT_UNEXPECTED, Colors.YELLOW))
+                warnings.append(WARN_DETECTIONS_FORMAT)
         except Exception:
-            print(colored("  ⚠️  Detections format unexpected", Colors.YELLOW))
-            warnings.append("Detections format")
+            print(colored(WARN_DETECTIONS_FORMAT_UNEXPECTED, Colors.YELLOW))
+            warnings.append(WARN_DETECTIONS_FORMAT)
             
     except Exception as e:
         print(colored(f"  ❌ MockDataService failed: {e}", Colors.RED))

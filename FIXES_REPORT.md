@@ -109,8 +109,8 @@ anomaly_map = predictions.reshape(original_shape)  # Use stored shape
 X[:, :, i] = np.where(np.isnan(channel), channel_mean, channel)
 # Instead of: channel[np.isnan(channel)] = channel_mean
 ```
-**Error:** `IndexError: too many indices for array: array is 1-dimensional, but 3 were indexed`  
-**Root Cause:** After `reshape(-1, n_features)`, array becomes 2D but code tried to use 3D indexing  
+**Error:** `IndexError: too many indices for array: array is 1-dimensional, but 3 were indexed`
+**Root Cause:** After `reshape(-1, n_features)`, array becomes 2D but code tried to use 3D indexing
 **Commit:** cdcc1d6
 
 ---
@@ -285,5 +285,5 @@ RESULTS: 3/3 tests passed
 
 **التاريخ:** 2026-01-10  
 **الإصدار:** v1.0.0-hardened  
-**الالتزام النهائي:** cdcc1d6  
-**إصلاحات إضافية:** 8 immediate + 8 proactive = 16 total  
+**الالتزام النهائي:** cdcc1d6
+**إصلاحات إضافية:** 8 immediate + 8 proactive = 16 total
