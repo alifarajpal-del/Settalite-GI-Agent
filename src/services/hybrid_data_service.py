@@ -170,6 +170,25 @@ class HybridDataService:
             return False
         return True
 
+def _ensure_geodataframe(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Ensure DataFrame is a GeoDataFrame with geometry column.
+        
+        Args:
+            df: Input DataFrame
+            
+        Returns:
+            GeoDataFrame with geometry column
+        """
+        if not isinstance(df, gpd.GeoDataFrame):
+            if 'geometry' not in df.columns:
+                df['geometry'] = df.apply(
+                    lambda row: Point(row['lon'], row['lat']),
+                    axis=1
+                )
+            df = gpd.GeoDataFrame(df, geometry='geometry', crs='EPSG:4326')
+        return df
+
     def _deduplicate_sites(
         self,
         df: pd.DataFrame,
@@ -191,13 +210,7 @@ class HybridDataService:
         logger.info(f"Deduplicating sites (threshold={threshold_m}m)...")
         
         # Convert to GeoDataFrame if not already
-        if not isinstance(df, gpd.GeoDataFrame):
-            if 'geometry' not in df.columns:
-                df['geometry'] = df.apply(
-                    lambda row: Point(row['lon'], row['lat']),
-                    axis=1
-                )
-            df = gpd.GeoDataFrame(df, geometry='geometry', crs='EPSG:4326')
+        df = self._ensure_geodataframe(df)
         
         # Reproject to metric CRS for distance calculation (UTM zone 38N for Saudi Arabia)
         df_utm = df.to_crs('EPSG:32638')

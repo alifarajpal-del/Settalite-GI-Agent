@@ -130,20 +130,16 @@ def print_summary(failures, warnings, success):
         
         return 0
 
-def main():
+def _print_system_info():
+    """Print system information"""
     print(colored("\n🛰️  Heritage Sentinel Pro - Smoke Test\n", Colors.CYAN))
-    
-    # System info
     print(colored("📊 System Information:", Colors.CYAN))
     print(f"  Python: {sys.version.split()[0]}")
     print(f"  Platform: {platform.system()} {platform.release()}")
     print(f"  Architecture: {platform.machine()}\n")
-    
-    failures = []
-    warnings = []
-    success = []
-    
-    # Critical paths check
+
+def _check_critical_paths(results):
+    """Check critical file paths"""
     print(colored("📁 Critical Paths:", Colors.CYAN))
     critical_paths = [
         "app/app.py",
@@ -157,17 +153,19 @@ def main():
         path = Path(path_str)
         if path.exists():
             print(colored(f"  ✅ {path_str}", Colors.GREEN))
-            success.append(f"Path: {path_str}")
+            results['success'].append(f"Path: {path_str}")
         else:
             print(colored(f"  ❌ {path_str} MISSING", Colors.RED))
-            failures.append(f"Missing path: {path_str}")
+            results['failures'].append(f"Missing path: {path_str}")
     
     # List config directory
     config_dir = Path("src/config")
     if config_dir.exists():
         config_files = list(config_dir.glob("*.py"))
         print(f"\n  Config files: {', '.join(f.name for f in config_files)}")
-    
+
+def _check_imports(results):
+    """Check required and optional imports"""
     # Required imports
     print(colored("\n📦 Required Imports:", Colors.CYAN))
     required_modules = ["streamlit", "numpy", "pandas"]
@@ -176,10 +174,10 @@ def main():
         try:
             __import__(module)
             print(colored(f"  ✅ {module}", Colors.GREEN))
-            success.append(f"Import: {module}")
+            results['success'].append(f"Import: {module}")
         except ImportError:
             print(colored(f"  ❌ {module} MISSING", Colors.RED))
-            failures.append(f"Required module: {module}")
+            results['failures'].append(f"Required module: {module}")
     
     # Nice-to-have imports
     print(colored("\n🎁 Recommended Imports:", Colors.CYAN))
@@ -189,10 +187,10 @@ def main():
         try:
             __import__(module)
             print(colored(f"  ✅ {module}", Colors.GREEN))
-            success.append(f"Import: {module}")
+            results['success'].append(f"Import: {module}")
         except ImportError:
             print(colored(f"  ⚠️  {module} (optional)", Colors.YELLOW))
-            warnings.append(f"Optional module: {module}")
+            results['warnings'].append(f"Optional module: {module}")
     
     # Heavy optional imports
     print(colored("\n🏋️  Heavy Optional:", Colors.CYAN))
@@ -204,8 +202,9 @@ def main():
             print(colored(f"  ✅ {module}", Colors.GREEN))
         except ImportError:
             print(colored(f"  ⚠️  {module} (live mode only)", Colors.YELLOW))
-    
-    # Service checks
+
+def _check_services(results):
+    """Check service configuration and functionality"""
     print(colored("\n🔧 Service Checks:", Colors.CYAN))
     
     # Config loader
@@ -216,13 +215,13 @@ def main():
         
         if isinstance(config, dict) and 'app' in config:
             print(colored("  ✅ Config loader works", Colors.GREEN))
-            success.append("Config loader")
+            results['success'].append("Config loader")
         else:
             print(colored("  ❌ Config invalid format", Colors.RED))
-            failures.append("Config format")
+            results['failures'].append("Config format")
     except Exception as e:
         print(colored(f"  ❌ Config loader failed: {e}", Colors.RED))
-        failures.append(f"Config loader: {e}")
+        results['failures'].append(f"Config loader: {e}")
     
     # Mock data service
     try:
@@ -234,10 +233,10 @@ def main():
         aoi = mock.create_mock_aoi()
         if hasattr(aoi, 'is_valid') or hasattr(aoi, 'geom_type'):
             print(colored("  ✅ MockDataService.create_mock_aoi()", Colors.GREEN))
-            success.append("Mock AOI")
+            results['success'].append("Mock AOI")
         else:
             print(colored("  ⚠️  AOI format unexpected", Colors.YELLOW))
-            warnings.append("AOI format")
+            results['warnings'].append("AOI format")
         
         # Test generate_mock_detections
         detections = mock.generate_mock_detections()
@@ -248,29 +247,31 @@ def main():
             
             if len(detections) > 0 and has_coords:
                 print(colored(f"  ✅ MockDataService.generate_mock_detections() [{len(detections)} sites]", Colors.GREEN))
-                success.append(f"Mock detections: {len(detections)} sites")
+                results['success'].append(f"Mock detections: {len(detections)} sites")
             else:
                 print(colored("  ⚠️  Detections format unexpected", Colors.YELLOW))
-                warnings.append("Detections format")
+                results['warnings'].append("Detections format")
         else:
             print(colored("  ❌ Detections not a DataFrame", Colors.RED))
-            failures.append("Detections format")
+            results['failures'].append("Detections format")
             
     except Exception as e:
         print(colored(f"  ❌ MockDataService failed: {e}", Colors.RED))
-        failures.append(f"MockDataService: {e}")
-    
+        results['failures'].append(f"MockDataService: {e}")
+
+def _print_summary(results):
+    """Print test summary"""
     # Summary
     print("\n" + colored("=" * 60, Colors.CYAN))
     print(colored("\n📊 Summary:", Colors.CYAN))
-    print(colored(f"  ✅ Success: {len(success)}", Colors.GREEN))
-    print(colored(f"  ⚠️  Warnings: {len(warnings)}", Colors.YELLOW))
-    print(colored(f"  ❌ Failures: {len(failures)}", Colors.RED))
+    print(colored(f"  ✅ Success: {len(results['success'])}", Colors.GREEN))
+    print(colored(f"  ⚠️  Warnings: {len(results['warnings'])}", Colors.YELLOW))
+    print(colored(f"  ❌ Failures: {len(results['failures'])}", Colors.RED))
     
-    if failures:
+    if results['failures']:
         print(colored("\n❌ FAILED", Colors.RED))
         print("\nFailures:")
-        for fail in failures:
+        for fail in results['failures']:
             print(f"  • {fail}")
         
         print(colored("\nNext steps:", Colors.YELLOW))
@@ -278,13 +279,23 @@ def main():
         print("  2. Verify src/ directory structure")
         return 2
     else:
-        success_rate = len(success) / (len(success) + len(warnings)) * 100 if success else 0
+        success_rate = len(results['success']) / (len(results['success']) + len(results['warnings'])) * 100 if results['success'] else 0
         print(colored(f"\n✅ PASSED (Success rate: {success_rate:.0f}%)", Colors.GREEN))
         
-        if warnings:
-            print(colored(f"\n⚠️  {len(warnings)} optional features missing (demo mode still works)", Colors.YELLOW))
+        if results['warnings']:
+            print(colored(f"\n⚠️  {len(results['warnings'])} optional features missing (demo mode still works)", Colors.YELLOW))
         
         return 0
+
+def main():
+    """Run smoke tests with extracted helper functions"""
+    results = {'success': [], 'warnings': [], 'failures': []}
+    
+    _print_system_info()
+    _check_critical_paths(results)
+    _check_imports(results)
+    _check_services(results)
+    _print_summary(results)
 
 if __name__ == "__main__":
     sys.exit(main())
