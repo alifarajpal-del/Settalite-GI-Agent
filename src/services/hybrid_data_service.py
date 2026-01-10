@@ -189,6 +189,41 @@ def _ensure_geodataframe(self, df: pd.DataFrame) -> pd.DataFrame:
             df = gpd.GeoDataFrame(df, geometry='geometry', crs='EPSG:4326')
         return df
 
+def _process_duplicate_comparisons(self, i, df_utm, df, keep_indices, threshold_m):
+        """
+        Compare site i with all later sites and handle duplicates.
+        
+        Args:
+            i: Index of current site
+            df_utm: GeoDataFrame in UTM projection
+            df: Original DataFrame with confidence scores
+            keep_indices: List of indices to keep
+            threshold_m: Distance threshold in meters
+            
+        Returns:
+            Count of removed duplicates
+        """
+        removed_count = 0
+        current_geom = df_utm.iloc[i].geometry
+        
+        for j in range(i + 1, len(df_utm)):
+            if j in keep_indices:
+                continue
+            
+            other_geom = df_utm.iloc[j].geometry
+            distance = current_geom.distance(other_geom)
+            
+            if distance < threshold_m:
+                # Sites are duplicates - keep the one with higher confidence
+                if not self._should_keep_site(i, j, df, keep_indices):
+                    removed_count += 1
+                    break
+                else:
+                    # Remove the lower confidence site
+                    removed_count += 1
+        
+        return removed_count
+
     def _deduplicate_sites(
         self,
         df: pd.DataFrame,
@@ -226,24 +261,10 @@ def _ensure_geodataframe(self, df: pd.DataFrame) -> pd.DataFrame:
             # Keep this site
             keep_indices.append(i)
             
-            # Find sites within threshold
-            current_geom = df_utm.iloc[i].geometry
-            
-            for j in range(i + 1, len(df_utm)):
-                if j in keep_indices:
-                    continue
-                
-                other_geom = df_utm.iloc[j].geometry
-                distance = current_geom.distance(other_geom)
-                
-                if distance < threshold_m:
-                    # Sites are duplicates - keep the one with higher confidence
-                    if not self._should_keep_site(i, j, df, keep_indices):
-                        removed_count += 1
-                        break
-                    else:
-                        # Remove the lower confidence site
-                        removed_count += 1
+            # Compare with later sites
+            removed_count += self._process_duplicate_comparisons(
+                i, df_utm, df, keep_indices, threshold_m
+            )
         
         # Filter to kept sites
         df_deduped = df.iloc[keep_indices].reset_index(drop=True)
