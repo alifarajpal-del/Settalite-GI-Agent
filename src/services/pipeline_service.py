@@ -346,8 +346,8 @@ class PipelineService:
                 start_dt = datetime.strptime(request.start_date, '%Y-%m-%d')
                 end_dt = datetime.strptime(request.end_date, '%Y-%m-%d')
                 
-                # Search for scenes
-                scenes = sh_provider.search_scenes(bbox, start_dt, end_dt, max_cloud_cover=20.0)
+                # Search for scenes (use configurable max_cloud_cover from request)
+                scenes = sh_provider.search_scenes(bbox, start_dt, end_dt, max_cloud_cover=request.max_cloud_cover)
                 
                 # NO FAKE RESULTS: If no scenes, return NO_DATA immediately
                 if not scenes or len(scenes) == 0:
@@ -357,12 +357,13 @@ class PipelineService:
                         f"NO SATELLITE DATA AVAILABLE\n\n"
                         f"📍 AOI: {bbox}\n"
                         f"📅 Time Range: {request.start_date} to {request.end_date}\n"
-                        f"☁️ Max Cloud Cover: 20%\n\n"
+                        f"☁️ Max Cloud Cover: {request.max_cloud_cover}%\n\n"
                         f"Next Steps:\n"
-                        f"1. Expand the time range (try 6-12 months)\n"
-                        f"2. Increase cloud cover tolerance\n"
+                        f"1. Increase cloud cover tolerance to 50-80%\n"
+                        f"2. Expand the time range (try 24-36 months)\n"
                         f"3. Verify the AOI is over land (not ocean)\n"
-                        f"4. Check if the location is covered by Sentinel-2"
+                        f"4. Check if the location is covered by Sentinel-2\n"
+                        f"5. Try a different season (some areas have persistent clouds)"
                     )
                     self.logger.error(f"NO_DATA: {result.failure_reason}")
                     result.errors.append(result.failure_reason)

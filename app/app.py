@@ -376,6 +376,17 @@ def render_operations(labels):
             format_func=lambda x: x.title()
         )
     
+    # === CLOUD COVER TOLERANCE (below settings) ===
+    st.write("")
+    cloud_cover_max = st.slider(
+        "☁️ Max Cloud Cover Tolerance",
+        min_value=10,
+        max_value=80,
+        value=30,
+        step=10,
+        help="Higher values find more images but may include cloudy scenes. Start with 30% if no results found."
+    )
+    
     # === SCAN BUTTON ===
     st.write("")
     _, center_col, _ = st.columns([1, 2, 1])
@@ -461,6 +472,7 @@ def run_analysis(target, radius, months_back, data_source, model_mode, labels):
             start_date=start_date.strftime('%Y-%m-%d'),
             end_date=end_date.strftime('%Y-%m-%d'),
             mode=data_source,  # 'demo' or 'live' (or 'real')
+            max_cloud_cover=cloud_cover_max,
             model_mode=model_mode
         )
         
