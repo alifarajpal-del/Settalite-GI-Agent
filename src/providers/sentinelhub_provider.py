@@ -116,16 +116,19 @@ class SentinelHubProvider:
         start_date: datetime,
         end_date: datetime,
         max_cloud_cover: float = 20.0
-    ) -> List[Dict[str, Any]]:
+    ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
         """
         Search for available scenes.
         
         Returns:
-            List of scene metadata dicts
+            Tuple of (scenes_list, error_message)
+            - If successful: (list of scenes, None)
+            - If failed: ([], detailed error message)
         """
         if not self.available:
-            self.logger.warning("SentinelHub provider not available - cannot search scenes")
-            return []
+            error_msg = f"❌ SentinelHub provider not available: {self._unavailable_reason}"
+            self.logger.warning(error_msg)
+            return [], error_msg
         
         try:
             sh_bbox = BBox(bbox=bbox, crs=CRS.WGS84)
@@ -171,36 +174,85 @@ class SentinelHubProvider:
             
             scenes = []
             scene_count = 0
-            for item in search_iterator:
-                scene_count += 1
-                cloud_cover = item['properties'].get('eo:cloud_cover', 0)
-                scenes.append({
-                    'id': item['id'],
-                    'datetime': datetime.fromisoformat(item['properties']['datetime'].replace('Z', '+00:00')),
-                    'cloud_cover': cloud_cover,
-                    'data_coverage': item['properties'].get('s2:data_coverage', 100)
-                })
+            
+            # محاولة قراءة النتائج
+            try:
+                for item in search_iterator:
+                    scene_count += 1
+                    cloud_cover = item['properties'].get('eo:cloud_cover', 0)
+                    scenes.append({
+                        'id': item['id'],
+                        'datetime': datetime.fromisoformat(item['properties']['datetime'].replace('Z', '+00:00')),
+                        'cloud_cover': cloud_cover,
+                        'data_coverage': item['properties'].get('s2:data_coverage', 100)
+                    })
+            except Exception as iter_error:
+                # خطأ أثناء قراءة النتائج
+                error_msg = f"❌ فشل قراءة نتائج البحث: {type(iter_error).__name__}: {str(iter_error)}"
+                self.logger.error(error_msg)
+                
+                # تحديد نوع الخطأ
+                if "connection" in str(iter_error).lower() or "timeout" in str(iter_error).lower():
+                    error_msg += "\n\n🌐 مشكلة في الاتصال بـ Sentinel Hub"
+                    error_msg += "\n  • تحقق من اتصال الإنترنت"
+                    error_msg += "\n  • تأكد من عدم وجود جدار ناري يحجب services.sentinel-hub.com"
+                elif "401" in str(iter_error) or "unauthorized" in str(iter_error).lower():
+                    error_msg += "\n\n🔑 مشكلة في التخويل"
+                    error_msg += "\n  • تحقق من صحة SENTINELHUB_CLIENT_ID و CLIENT_SECRET"
+                    error_msg += "\n  • تأكد من تفعيل Sentinel-2 L2A في Configuration"
+                elif "403" in str(iter_error) or "forbidden" in str(iter_error).lower():
+                    error_msg += "\n\n🚫 الوصول مرفوض"
+                    error_msg += "\n  • تحقق من تفعيل Sentinel-2 L2A في حساب Sentinel Hub"
+                    error_msg += "\n  • افتح Configuration Utility → Input Data → فعّل Sentinel-2 L2A"
+                
+                import traceback
+                self.logger.error(f"Traceback: {traceback.format_exc()}")
+                return [], error_msg
             
             if len(scenes) == 0:
-                self.logger.warning(f"⚠️ NO SCENES FOUND with cloud cover < {max_cloud_cover}%")
-                self.logger.info(f"Troubleshooting tips:")
-                self.logger.info(f"  1. Check if AOI is over land: {bbox}")
-                self.logger.info(f"  2. Try longer time range (current: {(end_date - start_date).days} days)")
-                self.logger.info(f"  3. Try higher cloud cover (50-80%)")
-                self.logger.info(f"  4. Verify location is covered by Sentinel-2")
+                # لم يتم العثور على مشاهد - قد تكون المنطقة فارغة أو المعايير صارمة
+                warning_msg = f"⚠️ لم يتم العثور على مشاهد تطابق المعايير"
+                warning_msg += f"\n\n📋 معايير البحث:"
+                warning_msg += f"\n  • المنطقة: {bbox}"
+                warning_msg += f"\n  • الفترة: {(end_date - start_date).days} يوم"
+                warning_msg += f"\n  • الغيوم: < {max_cloud_cover}%"
+                warning_msg += f"\n\n💡 اقتراحات:"
+                warning_msg += f"\n  1. جرّب فترة زمنية أطول (6-12 شهر)"
+                warning_msg += f"\n  2. ارفع حد الغيوم إلى 50-80%"
+                warning_msg += f"\n  3. تحقق من أن المنطقة مغطاة بـ Sentinel-2"
+                warning_msg += f"\n  4. تأكد من تفعيل Sentinel-2 L2A في Configuration"
+                
+                self.logger.warning(warning_msg)
+                return [], warning_msg
             else:
                 self.logger.info(f"✓ Found {len(scenes)} scenes matching criteria")
                 if scenes:
                     avg_cloud = sum(s['cloud_cover'] for s in scenes) / len(scenes)
                     self.logger.info(f"  Average cloud cover: {avg_cloud:.1f}%")
-            
-            return scenes
+                
+                return scenes, None
             
         except Exception as e:
-            self.logger.error(f"Scene search failed: {type(e).__name__}: {e}")
+            # خطأ عام في البحث
+            error_msg = f"❌ فشل البحث عن المشاهد: {type(e).__name__}: {str(e)}"
+            self.logger.error(error_msg)
+            
+            # تفصيل نوع الخطأ
+            if "connection" in str(e).lower() or "timeout" in str(e).lower():
+                error_msg += "\n\n🌐 مشكلة في الاتصال"
+                error_msg += "\n  • تحقق من اتصال الإنترنت"
+                error_msg += "\n  • Sentinel Hub قد يكون غير متاح مؤقتاً"
+            elif "401" in str(e) or "403" in str(e) or "unauthorized" in str(e).lower():
+                error_msg += "\n\n🔑 مشكلة في المفاتيح"
+                error_msg += "\n  • راجع SENTINELHUB_CLIENT_ID و CLIENT_SECRET"
+                error_msg += "\n  • تأكد من تفعيل Sentinel-2 L2A في Configuration"
+            elif "sentinelhub" in str(e).lower():
+                error_msg += "\n\n📦 مشكلة في مكتبة sentinelhub"
+                error_msg += "\n  • تأكد من تثبيت: pip install sentinelhub>=3.9.0"
+            
             import traceback
             self.logger.error(f"Traceback: {traceback.format_exc()}")
-            return []
+            return [], error_msg
     
     @retry(
 

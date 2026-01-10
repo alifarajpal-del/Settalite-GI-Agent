@@ -46,7 +46,11 @@ def test_scene_search(provider):
     end_date = datetime.now()
     start_date = end_date - timedelta(days=180)
     
-    scenes = provider.search_scenes(bbox, start_date, end_date, max_cloud_cover=20.0)
+    scenes, error = provider.search_scenes(bbox, start_date, end_date, max_cloud_cover=20.0)
+    
+    if error:
+        print(f"   ✗ Search failed: {error}")
+        return False
     
     if len(scenes) > 0:
         print(f"   ✓ Found {len(scenes)} scenes")
