@@ -9,6 +9,39 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
+def _validate_config_structure(config):
+    """Validate configuration structure and return critical components"""
+    assert isinstance(config, dict), "Config must be dict"
+    assert 'app' in config, "Config must have 'app' key"
+    
+    # App keys
+    assert 'name' in config['app'], "Missing app.name"
+    assert 'version' in config['app'], "Missing app.version"
+    
+    # Satellite keys
+    assert 'satellite' in config, "Missing satellite config"
+    assert 'providers' in config['satellite'], "Missing satellite.providers"
+    assert 'sentinel' in config['satellite']['providers'], "Missing sentinel provider"
+    
+    sentinel = config['satellite']['providers']['sentinel']
+    assert 'resolution' in sentinel, "Missing sentinel.resolution"
+    assert 'bands' in sentinel, "Missing sentinel.bands"
+    assert 'optical' in sentinel['bands'], "Missing sentinel.bands.optical"
+    
+    # Processing keys
+    assert 'processing' in config, "Missing processing config"
+    assert 'coordinate_extraction' in config['processing'], "Missing coordinate_extraction"
+    assert 'anomaly_detection' in config['processing'], "Missing anomaly_detection"
+    assert 'spectral_indices' in config['processing'], "Missing spectral_indices"
+    
+    # Paths
+    assert 'paths' in config, "Missing paths config"
+    assert 'outputs' in config['paths'], "Missing paths.outputs"
+    assert 'exports' in config['paths'], "Missing paths.exports"
+    assert 'data' in config['paths'], "Missing paths.data"
+    
+    return sentinel
+
 def test_integration():
     """Run full integration test"""
     print("\n🧪 Heritage Sentinel Pro - Integration Test\n")
@@ -24,37 +57,9 @@ def test_integration():
         from src.config import load_config
         config = load_config()
         
-        assert isinstance(config, dict), "Config must be dict"
-        assert 'app' in config, "Config must have 'app' key"
-        
         # Validate critical keys for services
         print("   Validating critical keys...")
-        
-        # App keys
-        assert 'name' in config['app'], "Missing app.name"
-        assert 'version' in config['app'], "Missing app.version"
-        
-        # Satellite keys
-        assert 'satellite' in config, "Missing satellite config"
-        assert 'providers' in config['satellite'], "Missing satellite.providers"
-        assert 'sentinel' in config['satellite']['providers'], "Missing sentinel provider"
-        
-        sentinel = config['satellite']['providers']['sentinel']
-        assert 'resolution' in sentinel, "Missing sentinel.resolution"
-        assert 'bands' in sentinel, "Missing sentinel.bands"
-        assert 'optical' in sentinel['bands'], "Missing sentinel.bands.optical"
-        
-        # Processing keys
-        assert 'processing' in config, "Missing processing config"
-        assert 'coordinate_extraction' in config['processing'], "Missing coordinate_extraction"
-        assert 'anomaly_detection' in config['processing'], "Missing anomaly_detection"
-        assert 'spectral_indices' in config['processing'], "Missing spectral_indices"
-        
-        # Paths
-        assert 'paths' in config, "Missing paths config"
-        assert 'outputs' in config['paths'], "Missing paths.outputs"
-        assert 'exports' in config['paths'], "Missing paths.exports"
-        assert 'data' in config['paths'], "Missing paths.data"
+        sentinel = _validate_config_structure(config)
         
         print("✅ Config loaded successfully")
         print(f"   App: {config['app'].get('name', 'Unknown')}")

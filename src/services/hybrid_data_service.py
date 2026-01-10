@@ -47,6 +47,32 @@ class HybridDataService:
         
         logger.info("HybridDataService initialized")
     
+    def _apply_source_weight_and_filter(
+        self,
+        df: pd.DataFrame,
+        source_name: str,
+        aoi_bbox: Optional[Tuple[float, float, float, float]]
+    ) -> pd.DataFrame:
+        """Apply source-specific confidence weighting and AOI filtering"""
+        # Adjust confidence based on source weight
+        if source_name in self.source_weights:
+            weight = self.source_weights[source_name]
+            df['confidence'] = df['confidence'] * weight
+            # Clamp to [0, 100]
+            df['confidence'] = df['confidence'].clip(0, 100)
+        
+        # Filter by AOI if provided
+        if aoi_bbox is not None:
+            min_lon, min_lat, max_lon, max_lat = aoi_bbox
+            df = df[
+                (df['lon'] >= min_lon) &
+                (df['lon'] <= max_lon) &
+                (df['lat'] >= min_lat) &
+                (df['lat'] <= max_lat)
+            ]
+        
+        return df
+    
     def combine_sources(
         self,
         sources: Dict[str, pd.DataFrame],
@@ -87,23 +113,11 @@ class HybridDataService:
             # Add source metadata
             df_normalized['source'] = source_name
             
-            # Adjust confidence based on source weight
-            if source_name in self.source_weights:
-                weight = self.source_weights[source_name]
-                df_normalized['confidence'] = df_normalized['confidence'] * weight
-                # Clamp to [0, 100]
-                df_normalized['confidence'] = df_normalized['confidence'].clip(0, 100)
-            
-            # Filter by AOI if provided
-            if aoi_bbox is not None:
-                min_lon, min_lat, max_lon, max_lat = aoi_bbox
-                df_normalized = df_normalized[
-                    (df_normalized['lon'] >= min_lon) &
-                    (df_normalized['lon'] <= max_lon) &
-                    (df_normalized['lat'] >= min_lat) &
-                    (df_normalized['lat'] <= max_lat)
-                ]
-                logger.info(f"  After AOI filter: {len(df_normalized)} sites")
+            # Adjust confidence and filter
+            df_normalized = self._apply_source_weight_and_filter(
+                df_normalized, source_name, aoi_bbox
+            )
+            logger.info(f"  After processing: {len(df_normalized)} sites")
             
             combined_dfs.append(df_normalized)
         

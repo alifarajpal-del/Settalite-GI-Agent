@@ -3,7 +3,9 @@
 ## What You Have
 - **Project ID**: `concise-perigee-468806-m8`
 - **Project Name**: My Project 43136
-- **Google Cloud API Key**: `AIzaSyCwKOIgf6t1KIJ3meY7Cysp-tRa_BBwO2g`
+- **Google Cloud API Key**: `[REVOKED - DO NOT COMMIT API KEYS TO GIT]`
+
+⚠️ **Security Note**: The original API key has been revoked. Never commit API keys to version control. Use environment variables or .env files (added to .gitignore) instead.
 
 ⚠️ **Important**: The API key you have is for Google Cloud services (Maps, Places, etc.), NOT for Earth Engine. Earth Engine requires different authentication.
 
