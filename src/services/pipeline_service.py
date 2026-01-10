@@ -566,7 +566,6 @@ class PipelineService:
                 coordinate_extractor = self._get_coordinate_extractor()
                 gdf = coordinate_extractor.extract_coordinates_from_anomaly_map(
                     anomaly_map=anomaly_map,
-                    anomaly_surface=anomaly_surface,
                     aoi_geometry=request.aoi_geometry
                 )
                 

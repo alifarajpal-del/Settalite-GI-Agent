@@ -123,7 +123,7 @@ class LiveModeService:
         self.logger.info(f"اكتملت تهيئة الخدمات: {services_status}")
         return services_status
     
-    def run_full_pipeline(self, aoi_geometry, start_date, end_date, data_sources=None):
+    def run_full_pipeline(self, aoi_geometry, start_date, end_date):
         """
         تشغيل خط الأنابيب الكامل في الوضع الفعلي
         

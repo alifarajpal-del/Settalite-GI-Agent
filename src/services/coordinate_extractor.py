@@ -70,7 +70,6 @@ class CoordinateExtractor:
     def extract_coordinates_from_anomaly_map(
         self,
         anomaly_map: np.ndarray,
-        anomaly_surface: Optional[np.ndarray] = None,
         aoi_geometry: Optional[Polygon] = None
     ) -> gpd.GeoDataFrame:
         """
@@ -452,7 +451,7 @@ class CoordinateExtractor:
         
         return report
     
-    def _generate_recommendations(self, gdf: gpd.GeoDataFrame, stats: Dict) -> List[str]:
+    def _generate_recommendations(self, stats: Dict) -> List[str]:
         """
         توليد قائمة التوصيات
         """

@@ -2,6 +2,7 @@
 خدمة جلب بيانات الأقمار الصناعية
 """
 import numpy as np
+from numpy.random import default_rng
 from datetime import datetime
 from typing import Dict, Tuple, List
 import warnings
@@ -19,7 +20,6 @@ class SatelliteService:
     
     def download_sentinel_data(
         self,
-        aoi_geometry,
         start_date: str,
         end_date: str,
         max_cloud_cover: int = 30
@@ -41,6 +41,7 @@ class SatelliteService:
         try:
             # في بيئة إنتاجية، استخدم sentinelhub أو sentinelsat
             # هنا نستخدم بيانات تجريبية
+            rng = default_rng()
             
             # محاكاة البيانات
             bands_data = self._simulate_satellite_data(aoi_geometry)
@@ -50,7 +51,7 @@ class SatelliteService:
                 'metadata': {
                     'satellite': 'Sentinel-2',
                     'acquisition_date': end_date,
-                    'cloud_cover': np.random.randint(0, max_cloud_cover),
+                    'cloud_cover': rng.integers(0, max_cloud_cover),
                     'resolution': self.sentinel_config['resolution']
                 },
                 'transform': self._get_transform(aoi_geometry),
@@ -69,6 +70,7 @@ class SatelliteService:
         """
         محاكاة بيانات الأقمار الصناعية للتطوير والاختبار
         """
+        rng = default_rng()
         bounds = aoi_geometry.bounds
         width = int((bounds[2] - bounds[0]) * 1000)  # تقريبي
         height = int((bounds[3] - bounds[1]) * 1000)
@@ -81,18 +83,18 @@ class SatelliteService:
         for band_name in self.sentinel_config['bands']['optical']:
             # إنشاء بيانات عشوائية واقعية
             if band_name in ['B02', 'B03', 'B04']:  # RGB
-                data = np.random.normal(0.3, 0.1, (height, width))
+                data = rng.normal(0.3, 0.1, (height, width))
             elif band_name == 'B08':  # NIR
-                data = np.random.normal(0.5, 0.15, (height, width))
+                data = rng.normal(0.5, 0.15, (height, width))
             else:  # SWIR
-                data = np.random.normal(0.2, 0.08, (height, width))
+                data = rng.normal(0.2, 0.08, (height, width))
             
             # إضافة بعض الشذوذ
-            num_anomalies = np.random.randint(5, 15)
+            num_anomalies = rng.integers(5, 15)
             for _ in range(num_anomalies):
-                y = np.random.randint(0, height)
-                x = np.random.randint(0, width)
-                size = np.random.randint(5, 20)
+                y = rng.integers(0, height)
+                x = rng.integers(0, width)
+                size = rng.integers(5, 20)
                 
                 y_start = max(0, y - size)
                 y_end = min(height, y + size)

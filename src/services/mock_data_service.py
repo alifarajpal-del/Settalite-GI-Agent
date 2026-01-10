@@ -4,6 +4,7 @@
 """
 
 import numpy as np
+from numpy.random import default_rng
 import pandas as pd
 from shapely.geometry import Polygon, Point
 import json
@@ -62,7 +63,7 @@ class MockDataService:
         Returns:
             dict: بيانات الأقمار الصناعية الوهمية
         """
-        np.random.seed(42)  # لنتائج ثابتة
+        rng = default_rng(42)  # لنتائج ثابتة
         
         # إنشاء بيانات وهمية ذات أنماط (ليست عشوائية بحتة)
         x = np.linspace(0, 10, width)
@@ -71,12 +72,12 @@ class MockDataService:
         
         # إنشاء أنماط مختلفة لكل نطاق طيفي
         bands_data = {
-            'B02': np.sin(X) * np.cos(Y) + np.random.normal(0, 0.1, (height, width)),  # Blue
-            'B03': np.sin(X*0.8) * np.cos(Y*0.8) + np.random.normal(0, 0.1, (height, width)),  # Green
-            'B04': np.sin(X*1.2) * np.cos(Y*1.2) + np.random.normal(0, 0.1, (height, width)),  # Red
-            'B08': np.sin(X*0.5) * np.cos(Y*0.5) + np.random.normal(0, 0.1, (height, width)),  # NIR
-            'B11': np.sin(X*1.5) * np.cos(Y*1.5) + np.random.normal(0, 0.1, (height, width)),  # SWIR1
-            'B12': np.sin(X*2.0) * np.cos(Y*2.0) + np.random.normal(0, 0.1, (height, width)),  # SWIR2
+            'B02': np.sin(X) * np.cos(Y) + rng.normal(0, 0.1, (height, width)),  # Blue
+            'B03': np.sin(X*0.8) * np.cos(Y*0.8) + rng.normal(0, 0.1, (height, width)),  # Green
+            'B04': np.sin(X*1.2) * np.cos(Y*1.2) + rng.normal(0, 0.1, (height, width)),  # Red
+            'B08': np.sin(X*0.5) * np.cos(Y*0.5) + rng.normal(0, 0.1, (height, width)),  # NIR
+            'B11': np.sin(X*1.5) * np.cos(Y*1.5) + rng.normal(0, 0.1, (height, width)),  # SWIR1
+            'B12': np.sin(X*2.0) * np.cos(Y*2.0) + rng.normal(0, 0.1, (height, width)),  # SWIR2
         }
         
         # تطبيع البيانات بين 0 و1
@@ -107,14 +108,15 @@ class MockDataService:
         Returns:
             numpy.ndarray: خريطة الشذوذ الوهمية
         """
+        rng = default_rng()
         anomaly_map = np.zeros((height, width))
         
         # إضافة مناطق شاذة (دوائر بأنماط مختلفة)
         for _ in range(num_anomalies):
-            center_x = np.random.randint(20, width-20)
-            center_y = np.random.randint(20, height-20)
-            radius = np.random.randint(8, 25)
-            intensity = np.random.uniform(0.6, 0.95)
+            center_x = rng.integers(20, width-20)
+            center_y = rng.integers(20, height-20)
+            radius = rng.integers(8, 25)
+            intensity = rng.uniform(0.6, 0.95)
             
             # إنشاء دائرة من الشذوذ
             for x in range(max(0, center_x-radius), min(width, center_x+radius)):
@@ -125,7 +127,7 @@ class MockDataService:
                         anomaly_map[y, x] = max(anomaly_map[y, x], value)
         
         # إضافة ضجيج خلفية
-        noise = np.random.normal(0, 0.05, (height, width))
+        noise = rng.normal(0, 0.05, (height, width))
         anomaly_map = np.clip(anomaly_map + noise, 0, 1)
         
         return anomaly_map
@@ -141,7 +143,7 @@ class MockDataService:
         Returns:
             pandas.DataFrame: جدول البيانات الوهمية
         """
-        np.random.seed(42)
+        rng = default_rng(42)
         
         sites_data = []
         
@@ -149,13 +151,13 @@ class MockDataService:
             site_id = f"HS_{datetime.now().strftime('%Y%m')}_{i+1:03d}"
             
             # إحداثيات وهمية في منطقة القاهرة التاريخية
-            lon = 31.2350 + np.random.uniform(-0.005, 0.005)
-            lat = 30.0250 + np.random.uniform(-0.005, 0.005)
+            lon = 31.2350 + rng.uniform(-0.005, 0.005)
+            lat = 30.0250 + rng.uniform(-0.005, 0.005)
             
             # خصائص الموقع
-            confidence = np.random.uniform(0.65, 0.96)
-            area_m2 = np.random.uniform(300, 6000)
-            anomaly_intensity = np.random.uniform(0.7, 0.98)
+            confidence = rng.uniform(0.65, 0.96)
+            area_m2 = rng.uniform(300, 6000)
+            anomaly_intensity = rng.uniform(0.7, 0.98)
             
             # تحديد الأولوية بناء على الثقة والشدة
             if confidence > 0.85 and anomaly_intensity > 0.9:
@@ -170,7 +172,7 @@ class MockDataService:
             
             # تحديد نوع الموقع المحتمل
             site_types = ["مستوطنة أثرية", "مبنى قديم", "هيكل دفاعي", "منطقة صناعية", "معبد"]
-            site_type = np.random.choice(site_types, p=[0.3, 0.25, 0.2, 0.15, 0.1])
+            site_type = rng.choice(site_types, p=[0.3, 0.25, 0.2, 0.15, 0.1])
             
             # توصية ميدانية
             if priority_en == "high":

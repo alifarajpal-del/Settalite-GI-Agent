@@ -3,6 +3,7 @@
 """
 import pytest
 import numpy as np
+from numpy.random import default_rng
 import sys
 from pathlib import Path
 
@@ -28,9 +29,10 @@ def test_anomaly_detection():
     detector = AnomalyDetectionService(config, logger)
     
     # إنشاء بيانات اختبار
+    rng = default_rng()
     indices = {
-        'NDVI': np.random.randn(100, 100),
-        'NDWI': np.random.randn(100, 100)
+        'NDVI': rng.standard_normal((100, 100)),
+        'NDWI': rng.standard_normal((100, 100))
     }
     
     # تشغيل الكشف
