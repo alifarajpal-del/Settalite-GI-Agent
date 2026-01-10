@@ -321,6 +321,42 @@ def get_canonical_schema() -> List[str]:
     return REQUIRED_COLUMNS + ['site_type', 'geometry']
 
 
+def _validate_columns(df):
+    """Validate required columns exist"""
+    errors = []
+    for col in REQUIRED_COLUMNS:
+        if col not in df.columns:
+            errors.append(f"Missing required column: {col}")
+    return errors
+
+def _validate_coordinate_ranges(df):
+    """Validate latitude and longitude ranges"""
+    errors = []
+    if 'lat' in df.columns:
+        invalid_lat = df[(df['lat'] < -90) | (df['lat'] > 90)]
+        if len(invalid_lat) > 0:
+            errors.append(f"Found {len(invalid_lat)} rows with invalid latitude")
+    
+    if 'lon' in df.columns:
+        invalid_lon = df[(df['lon'] < -180) | (df['lon'] > 180)]
+        if len(invalid_lon) > 0:
+            errors.append(f"Found {len(invalid_lon)} rows with invalid longitude")
+    return errors
+
+def _validate_data_values(df):
+    """Validate confidence and priority values"""
+    errors = []
+    if 'confidence' in df.columns:
+        invalid_conf = df[(df['confidence'] < 0) | (df['confidence'] > 100)]
+        if len(invalid_conf) > 0:
+            errors.append(f"Found {len(invalid_conf)} rows with invalid confidence")
+    
+    if 'priority' in df.columns:
+        invalid_priority = df[~df['priority'].isin(PRIORITY_LEVELS)]
+        if len(invalid_priority) > 0:
+            errors.append(f"Found {len(invalid_priority)} rows with invalid priority")
+    return errors
+
 def validate_dataframe_schema(df: pd.DataFrame) -> Tuple[bool, List[str]]:
     """
     Validate if dataframe conforms to canonical schema.
@@ -334,32 +370,12 @@ def validate_dataframe_schema(df: pd.DataFrame) -> Tuple[bool, List[str]]:
     errors = []
     
     # Check required columns
-    for col in REQUIRED_COLUMNS:
-        if col not in df.columns:
-            errors.append(f"Missing required column: {col}")
-    
+    errors.extend(_validate_columns(df))
     if errors:
         return False, errors
     
     # Check data types and ranges
-    if 'lat' in df.columns:
-        invalid_lat = df[(df['lat'] < -90) | (df['lat'] > 90)]
-        if len(invalid_lat) > 0:
-            errors.append(f"Found {len(invalid_lat)} rows with invalid latitude")
-    
-    if 'lon' in df.columns:
-        invalid_lon = df[(df['lon'] < -180) | (df['lon'] > 180)]
-        if len(invalid_lon) > 0:
-            errors.append(f"Found {len(invalid_lon)} rows with invalid longitude")
-    
-    if 'confidence' in df.columns:
-        invalid_conf = df[(df['confidence'] < 0) | (df['confidence'] > 100)]
-        if len(invalid_conf) > 0:
-            errors.append(f"Found {len(invalid_conf)} rows with invalid confidence")
-    
-    if 'priority' in df.columns:
-        invalid_priority = df[~df['priority'].isin(PRIORITY_LEVELS)]
-        if len(invalid_priority) > 0:
-            errors.append(f"Found {len(invalid_priority)} rows with invalid priority")
+    errors.extend(_validate_coordinate_ranges(df))
+    errors.extend(_validate_data_values(df))
     
     return len(errors) == 0, errors
