@@ -108,6 +108,7 @@ class SentinelHubProvider:
             List of scene metadata dicts
         """
         if not self.available:
+            self.logger.warning("SentinelHub provider not available - cannot search scenes")
             return []
         
         try:
@@ -115,6 +116,12 @@ class SentinelHubProvider:
             catalog = SentinelHubCatalog(config=self.sh_config)
             
             time_interval = (start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
+            
+            # Log search parameters
+            self.logger.info(f"Searching Sentinel-2 scenes:")
+            self.logger.info(f"  AOI: {bbox}")
+            self.logger.info(f"  Time: {time_interval[0]} to {time_interval[1]}")
+            self.logger.info(f"  Max cloud cover: {max_cloud_cover}%")
             
             search_iterator = catalog.search(
                 DataCollection.SENTINEL2_L2A,
@@ -124,19 +131,36 @@ class SentinelHubProvider:
             )
             
             scenes = []
+            scene_count = 0
             for item in search_iterator:
+                scene_count += 1
+                cloud_cover = item['properties'].get('eo:cloud_cover', 0)
                 scenes.append({
                     'id': item['id'],
                     'datetime': datetime.fromisoformat(item['properties']['datetime'].replace('Z', '+00:00')),
-                    'cloud_cover': item['properties'].get('eo:cloud_cover', 0),
+                    'cloud_cover': cloud_cover,
                     'data_coverage': item['properties'].get('s2:data_coverage', 100)
                 })
             
-            self.logger.info(f"Found {len(scenes)} scenes")
+            if len(scenes) == 0:
+                self.logger.warning(f"⚠️ NO SCENES FOUND with cloud cover < {max_cloud_cover}%")
+                self.logger.info(f"Troubleshooting tips:")
+                self.logger.info(f"  1. Check if AOI is over land: {bbox}")
+                self.logger.info(f"  2. Try longer time range (current: {(end_date - start_date).days} days)")
+                self.logger.info(f"  3. Try higher cloud cover (50-80%)")
+                self.logger.info(f"  4. Verify location is covered by Sentinel-2")
+            else:
+                self.logger.info(f"✓ Found {len(scenes)} scenes matching criteria")
+                if scenes:
+                    avg_cloud = sum(s['cloud_cover'] for s in scenes) / len(scenes)
+                    self.logger.info(f"  Average cloud cover: {avg_cloud:.1f}%")
+            
             return scenes
             
         except Exception as e:
-            self.logger.error(f"Scene search failed: {e}")
+            self.logger.error(f"Scene search failed: {type(e).__name__}: {e}")
+            import traceback
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
             return []
     
     @retry(

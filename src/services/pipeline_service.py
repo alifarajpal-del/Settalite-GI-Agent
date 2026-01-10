@@ -353,17 +353,37 @@ class PipelineService:
                 if not scenes or len(scenes) == 0:
                     result.status = 'NO_DATA'
                     result.success = False
+                    
+                    # Calculate time range in days
+                    time_range_days = (end_dt - start_dt).days
+                    
+                    # Check if AOI is likely over water (very rough check)
+                    lon_center = (bbox[0] + bbox[2]) / 2
+                    lat_center = (bbox[1] + bbox[3]) / 2
+                    
                     result.failure_reason = (
                         f"NO SATELLITE DATA AVAILABLE\n\n"
-                        f"📍 AOI: {bbox}\n"
-                        f"📅 Time Range: {request.start_date} to {request.end_date}\n"
+                        f"📍 Location: ({lat_center:.4f}, {lon_center:.4f})\n"
+                        f"📐 AOI Bounds: {bbox}\n"
+                        f"📅 Time Range: {request.start_date} to {request.end_date} ({time_range_days} days)\n"
                         f"☁️ Max Cloud Cover: {request.max_cloud_cover}%\n\n"
+                        f"Possible Reasons:\n"
+                        f"• Location may be over ocean/water (Sentinel-2 focuses on land)\n"
+                        f"• Time range too short ({time_range_days} days) - try 6-12 months\n"
+                        f"• Cloud cover limit too strict ({request.max_cloud_cover}%) - try 60-80%\n"
+                        f"• Location outside Sentinel-2 coverage (between 84°N and 56°S)\n"
+                        f"• Region may have persistent cloud cover (tropical/equatorial areas)\n\n"
                         f"Next Steps:\n"
-                        f"1. Increase cloud cover tolerance to 50-80%\n"
-                        f"2. Expand the time range (try 24-36 months)\n"
-                        f"3. Verify the AOI is over land (not ocean)\n"
-                        f"4. Check if the location is covered by Sentinel-2\n"
-                        f"5. Try a different season (some areas have persistent clouds)"
+                        f"1. 🎯 RECOMMENDED: Increase cloud cover to 60-70%\n"
+                        f"2. 📅 Extend time range to 24-36 months\n"
+                        f"3. 🗺️ Verify location is over land (not ocean)\n"
+                        f"4. 🌍 Check if latitude is within -56° to +84°\n"
+                        f"5. 🔄 Try a different season if in tropical region\n"
+                        f"6. 📍 Test with a known archaeological site first\n\n"
+                        f"Known Good Test Sites:\n"
+                        f"• Petra, Jordan: 30.3285, 35.4444\n"
+                        f"• Machu Picchu, Peru: -13.1631, -72.5450\n"
+                        f"• Angkor Wat, Cambodia: 13.4125, 103.8670"
                     )
                     self.logger.error(f"NO_DATA: {result.failure_reason}")
                     result.errors.append(result.failure_reason)
