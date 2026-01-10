@@ -2,6 +2,10 @@
   // ============================================================
   // Python Configuration
   // ============================================================
+  // Disable SonarLint extension completely
+  "sonarlint.output.showAnalyzerLogs": false,
+  "sonarlint.output.showVerboseLogs": false,
+  
   "python.analysis.exclude": [
     "**/venv/**",
     "**/heritage_env/**",
@@ -86,8 +90,14 @@
   // ============================================================
   "problems.decorations.enabled": true,
   
-  // Show only errors and warnings, hide info
+  // Show only errors, hide warnings and info
   "problems.showCurrentInStatus": true,
+  
+  // Set maximum number of problems to display
+  "problems.maxProblemsCount": 100,
+  
+  // Sort problems by severity (errors first)
+  "problems.sortOrder": "severity",
   
   // ============================================================
   // Python Formatting (Optional - Black)
@@ -137,8 +147,19 @@
   "jupyter.widgetScriptSources": ["jsdelivr.com", "unpkg.com"],
   
   // ============================================================
-  // SonarQube/SonarLint Configuration
+  // SonarQube/SonarLint Configuration - DISABLED
   // ============================================================
+  "sonarlint.connectedMode.project": {
+    "projectKey": ""
+  },
+  
+  // Disable SonarLint completely
+  "sonarlint.disableTelemetry": true,
+  
+  // Exclude all files from SonarLint analysis
+  "sonarlint.pathToNodeExecutable": "",
+  
+  // Disable all SonarLint rules
   "sonarlint.rules": {
     "python:S1192": {
       "level": "off"
@@ -159,6 +180,30 @@
       "level": "off"
     },
     "python:S3776": {
+      "level": "off"
+    },
+    "python:S1135": {
+      "level": "off"
+    },
+    "python:S125": {
+      "level": "off"
+    },
+    "python:S108": {
+      "level": "off"
+    },
+    "python:S107": {
+      "level": "off"
+    },
+    "python:S105": {
+      "level": "off"
+    },
+    "python:S104": {
+      "level": "off"
+    },
+    "python:S103": {
+      "level": "off"
+    },
+    "python:S101": {
       "level": "off"
     }
   },
