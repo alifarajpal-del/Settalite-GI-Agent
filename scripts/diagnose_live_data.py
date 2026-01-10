@@ -141,10 +141,10 @@ def diagnose_data_shapes():
     
     # Check if composite needed
     if b03_single.ndim == 3:
-        print(f"  Applying mean composite...")
+        print("  Applying mean composite...")
         b03_single = np.mean(b03_single, axis=0)
     else:
-        print(f"  No composite needed (already 2D) ✓")
+        print("  No composite needed (already 2D) ✓")
     
     print("\n" + "=" * 60)
     print("✓ ALL DIAGNOSTIC TESTS PASSED")
