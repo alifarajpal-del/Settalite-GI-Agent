@@ -92,6 +92,36 @@ def _validate_feature(feature: Dict, index: int) -> List[str]:
     return errors
 
 
+def _validate_point_geometry(coords, feature_index):
+    """Validate Point geometry"""
+    return _validate_point_coordinates(coords, feature_index)
+
+def _validate_linestring_geometry(coords, feature_index, prefix):
+    """Validate LineString geometry"""
+    errors = []
+    if not isinstance(coords, list) or len(coords) < 2:
+        errors.append(f"{prefix}: LineString must have at least 2 positions")
+    else:
+        for i, pos in enumerate(coords):
+            pos_errors = _validate_position(pos, feature_index, i)
+            errors.extend(pos_errors)
+    return errors
+
+def _validate_polygon_geometry(coords, feature_index, prefix):
+    """Validate Polygon geometry"""
+    errors = []
+    if not isinstance(coords, list) or len(coords) == 0:
+        errors.append(f"{prefix}: Polygon must have at least 1 ring")
+    else:
+        for ring_i, ring in enumerate(coords):
+            if not isinstance(ring, list) or len(ring) < 4:
+                errors.append(f"{prefix}: Ring {ring_i} must have at least 4 positions")
+            else:
+                for pos_i, pos in enumerate(ring):
+                    pos_errors = _validate_position(pos, feature_index, pos_i)
+                    errors.extend(pos_errors)
+    return errors
+
 def _validate_geometry(geometry: Dict, feature_index: int) -> List[str]:
     """
     Validate geometry object.
@@ -120,26 +150,11 @@ def _validate_geometry(geometry: Dict, feature_index: int) -> List[str]:
     
     # Validate based on geometry type
     if geom_type == 'Point':
-        coord_errors = _validate_point_coordinates(coords, feature_index)
-        errors.extend(coord_errors)
+        errors.extend(_validate_point_geometry(coords, feature_index))
     elif geom_type == 'LineString':
-        if not isinstance(coords, list) or len(coords) < 2:
-            errors.append(f"{prefix}: LineString must have at least 2 positions")
-        else:
-            for i, pos in enumerate(coords):
-                pos_errors = _validate_position(pos, feature_index, i)
-                errors.extend(pos_errors)
+        errors.extend(_validate_linestring_geometry(coords, feature_index, prefix))
     elif geom_type == 'Polygon':
-        if not isinstance(coords, list) or len(coords) == 0:
-            errors.append(f"{prefix}: Polygon must have at least 1 ring")
-        else:
-            for ring_i, ring in enumerate(coords):
-                if not isinstance(ring, list) or len(ring) < 4:
-                    errors.append(f"{prefix}: Ring {ring_i} must have at least 4 positions")
-                else:
-                    for pos_i, pos in enumerate(ring):
-                        pos_errors = _validate_position(pos, feature_index, pos_i)
-                        errors.extend(pos_errors)
+        errors.extend(_validate_polygon_geometry(coords, feature_index, prefix))
     
     return errors
 
@@ -230,6 +245,36 @@ def sanitize_coordinates(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _create_feature(row, df_clean, idx):
+    """Create a single GeoJSON feature from a dataframe row"""
+    try:
+        geometry = {
+            "type": "Point",
+            "coordinates": [float(row['lon']), float(row['lat'])]
+        }
+        
+        properties = {}
+        for col in df_clean.columns:
+            if col not in ['lat', 'lon', 'geometry']:
+                value = row[col]
+                if pd.isna(value):
+                    properties[col] = None
+                elif isinstance(value, (np.integer, np.floating)):
+                    properties[col] = float(value)
+                elif isinstance(value, (int, float, str, bool)):
+                    properties[col] = value
+                else:
+                    properties[col] = str(value)
+        
+        return {
+            "type": "Feature",
+            "geometry": geometry,
+            "properties": properties
+        }
+    except Exception as e:
+        logger.warning(f"Failed to create feature for row {idx}: {e}")
+        return None
+
 def create_valid_geojson(df_canonical: pd.DataFrame) -> bytes:
     """
     Create valid GeoJSON FeatureCollection from canonical dataframe.
@@ -251,52 +296,16 @@ def create_valid_geojson(df_canonical: pd.DataFrame) -> bytes:
     df_clean = sanitize_coordinates(df_canonical.copy())
     
     if len(df_clean) == 0:
-        logger.warning("No valid features after sanitization - creating empty FeatureCollection")
-        geojson = {
-            "type": "FeatureCollection",
-            "features": []
-        }
+        logger.warning("No valid features after sanitization")
+        geojson = {"type": "FeatureCollection", "features": []}
         return json.dumps(geojson, ensure_ascii=False, indent=2).encode('utf-8')
     
     # Build features
     features = []
-    
     for idx, row in df_clean.iterrows():
-        try:
-            # Create geometry (GeoJSON uses [lon, lat] order)
-            geometry = {
-                "type": "Point",
-                "coordinates": [float(row['lon']), float(row['lat'])]
-            }
-            
-            # Create properties (exclude lat/lon/geometry from properties)
-            properties = {}
-            for col in df_clean.columns:
-                if col not in ['lat', 'lon', 'geometry']:
-                    value = row[col]
-                    
-                    # Convert to JSON-serializable type
-                    if pd.isna(value):
-                        properties[col] = None
-                    elif isinstance(value, (np.integer, np.floating)):
-                        properties[col] = float(value)
-                    elif isinstance(value, (int, float, str, bool)):
-                        properties[col] = value
-                    else:
-                        properties[col] = str(value)
-            
-            # Create feature
-            feature = {
-                "type": "Feature",
-                "geometry": geometry,
-                "properties": properties
-            }
-            
+        feature = _create_feature(row, df_clean, idx)
+        if feature is not None:
             features.append(feature)
-        
-        except Exception as e:
-            logger.warning(f"Failed to create feature for row {idx}: {e}")
-            continue
     
     # Create FeatureCollection
     geojson = {

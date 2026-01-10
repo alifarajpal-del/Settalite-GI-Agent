@@ -26,6 +26,46 @@ class ExportService:
         self.config = config
         self.logger = logger
     
+    
+    def _export_geojson(self, gdf, output_dir, base_name):
+        """Export to GeoJSON format"""
+        path = os.path.join(output_dir, f"{base_name}.geojson")
+        df_export = gdf.copy()
+        if 'geometry' in df_export.columns:
+            if 'lat' not in df_export.columns:
+                df_export['lat'] = df_export.geometry.y
+            if 'lon' not in df_export.columns:
+                df_export['lon'] = df_export.geometry.x
+        
+        geojson_bytes = create_valid_geojson(df_export)
+        with open(path, 'wb') as f:
+            f.write(geojson_bytes)
+        
+        is_valid = quick_geojson_test(geojson_bytes)
+        if is_valid:
+            logger.info("✓ GeoJSON validation passed")
+        else:
+            logger.warning("⚠ GeoJSON validation failed")
+        
+        stats = get_geojson_statistics(geojson_bytes)
+        logger.info(f"  Size: {stats['size_kb']} KB, Features: {stats['feature_count']}")
+        return path
+    
+    def _export_tabular(self, gdf, output_dir, base_name, fmt, precision):
+        """Export to CSV or Excel format"""
+        ext = 'csv' if fmt.lower() == 'csv' else 'xlsx'
+        path = os.path.join(output_dir, f"{base_name}.{ext}")
+        df = gdf.copy()
+        df['longitude'] = df.geometry.x.round(precision)
+        df['latitude'] = df.geometry.y.round(precision)
+        df = df.drop(columns=['geometry'])
+        
+        if fmt.lower() == 'csv':
+            df.to_csv(path, index=False)
+        else:
+            df.to_excel(path, index=False)
+        return path
+    
     def export_all(
         self,
         gdf: gpd.GeoDataFrame,
@@ -50,71 +90,22 @@ class ExportService:
             قاموس المسارات المصدرة
         """
         self.logger.info("بدء تصدير النتائج...")
-        
-        # إنشاء المجلد إذا لم يكن موجوداً
         os.makedirs(output_dir, exist_ok=True)
         
-        # إعادة إسقاط إذا لزم الأمر
         if gdf.crs != output_crs:
             gdf = gdf.to_crs(output_crs)
         
         exported = {}
-        
         for fmt in formats:
             try:
                 if fmt.lower() == 'geojson':
-                    path = os.path.join(output_dir, f"{base_name}.geojson")
-                    
-                    # Use validated GeoJSON export
-                    # Convert GeoDataFrame to DataFrame (normalizer expects pandas)
-                    df_export = gdf.copy()
-                    if 'geometry' in df_export.columns:
-                        # Extract lat/lon if not present
-                        if 'lat' not in df_export.columns:
-                            df_export['lat'] = df_export.geometry.y
-                        if 'lon' not in df_export.columns:
-                            df_export['lon'] = df_export.geometry.x
-                    
-                    # Create validated GeoJSON
-                    geojson_bytes = create_valid_geojson(df_export)
-                    
-                    # Write to file
-                    with open(path, 'wb') as f:
-                        f.write(geojson_bytes)
-                    
-                    # Quick test
-                    is_valid = quick_geojson_test(geojson_bytes)
-                    if is_valid:
-                        logger.info("✓ GeoJSON validation passed")
-                    else:
-                        logger.warning("⚠ GeoJSON validation failed - file may not open correctly")
-                    
-                    # Log statistics
-                    stats = get_geojson_statistics(geojson_bytes)
-                    logger.info(f"  Size: {stats['size_kb']} KB, Features: {stats['feature_count']}")
-                    
+                    path = self._export_geojson(gdf, output_dir, base_name)
                     exported['geojson'] = path
-                
-                elif fmt.lower() == 'csv':
-                    path = os.path.join(output_dir, f"{base_name}.csv")
-                    df = gdf.copy()
-                    df['longitude'] = df.geometry.x.round(precision)
-                    df['latitude'] = df.geometry.y.round(precision)
-                    df = df.drop(columns=['geometry'])
-                    df.to_csv(path, index=False)
-                    exported['csv'] = path
-                
-                elif fmt.lower() == 'excel':
-                    path = os.path.join(output_dir, f"{base_name}.xlsx")
-                    df = gdf.copy()
-                    df['longitude'] = df.geometry.x.round(precision)
-                    df['latitude'] = df.geometry.y.round(precision)
-                    df = df.drop(columns=['geometry'])
-                    df.to_excel(path, index=False)
-                    exported['excel'] = path
+                elif fmt.lower() in ('csv', 'excel'):
+                    path = self._export_tabular(gdf, output_dir, base_name, fmt, precision)
+                    exported[fmt.lower()] = path
                 
                 self.logger.info(f"تم التصدير بنجاح: {fmt}")
-                
             except Exception as e:
                 self.logger.error(f"خطأ في تصدير {fmt}: {e}")
         
