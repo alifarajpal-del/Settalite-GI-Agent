@@ -447,7 +447,7 @@ class CoordinateExtractor:
                     'recommended_action': site['recommended_action']
                 })
             
-            report['recommendations'] = self._generate_recommendations(gdf, stats)
+            report['recommendations'] = self._generate_recommendations(stats)
         
         return report
     

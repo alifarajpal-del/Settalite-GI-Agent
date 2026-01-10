@@ -12,8 +12,8 @@ class HeritageDetectionEnsemble:
     
     def __init__(self):
         self.models = {
-            'isolation_forest': IsolationForest(contamination=0.1),
-            'random_forest': RandomForestClassifier(n_estimators=100),
+            'isolation_forest': IsolationForest(contamination=0.1, random_state=42),
+            'random_forest': RandomForestClassifier(n_estimators=100, random_state=42, min_samples_leaf=2, max_features='sqrt'),
             'ocsvm': OneClassSVM(nu=0.1)
         }
         
@@ -34,7 +34,7 @@ class HeritageDetectionEnsemble:
             try:
                 pred = model.fit_predict(spectral_features)
                 predictions.append(pred)
-            except:
+            except Exception:
                 continue
         
         # 2. تطبيق القواعد المعرفية

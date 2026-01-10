@@ -41,7 +41,7 @@ class SatelliteService:
         try:
             # في بيئة إنتاجية، استخدم sentinelhub أو sentinelsat
             # هنا نستخدم بيانات تجريبية
-            rng = default_rng()
+            rng = default_rng(42)
             
             # محاكاة البيانات
             bands_data = self._simulate_satellite_data(aoi_geometry)
@@ -70,7 +70,7 @@ class SatelliteService:
         """
         محاكاة بيانات الأقمار الصناعية للتطوير والاختبار
         """
-        rng = default_rng()
+        rng = default_rng(42)
         bounds = aoi_geometry.bounds
         width = int((bounds[2] - bounds[0]) * 1000)  # تقريبي
         height = int((bounds[3] - bounds[1]) * 1000)
@@ -136,7 +136,6 @@ class SatelliteService:
     
     def search_available_images(
         self,
-        aoi_geometry,
         start_date: str,
         end_date: str,
         max_cloud_cover: int = 30
@@ -153,18 +152,19 @@ class SatelliteService:
         # هنا محاكاة بسيطة
         
         images = []
-        num_images = np.random.randint(3, 10)
+        rng = default_rng(42)
+        num_images = rng.integers(3, 10)
         
         start = datetime.strptime(start_date, "%Y-%m-%d")
         end = datetime.strptime(end_date, "%Y-%m-%d")
         
         for i in range(num_images):
-            acquisition_date = start + (end - start) * np.random.random()
+            acquisition_date = start + (end - start) * rng.random()
             
             images.append({
                 'id': f"S2_{acquisition_date.strftime('%Y%m%d')}_{i}",
                 'date': acquisition_date.strftime("%Y-%m-%d"),
-                'cloud_cover': np.random.randint(0, max_cloud_cover),
+                'cloud_cover': rng.integers(0, max_cloud_cover),
                 'satellite': 'Sentinel-2',
                 'processing_level': 'Level-2A'
             })

@@ -31,7 +31,7 @@ def test_ensemble():
         
         score = ensemble.apply_heritage_rules(test_features)
         print(f"[OK] Rule-based score: {score:.2f}")
-        print(f"     Expected: ~1.0 (all rules match)")
+        print("     Expected: ~1.0 (all rules match)")
         
         # Test with low-confidence features
         low_conf_features = {
@@ -43,7 +43,7 @@ def test_ensemble():
         
         low_score = ensemble.apply_heritage_rules(low_conf_features)
         print(f"[OK] Low confidence score: {low_score:.2f}")
-        print(f"     Expected: ~0.0 (no rules match)")
+        print("     Expected: ~0.0 (no rules match)")
         
         return True
     
@@ -62,13 +62,13 @@ def test_pretrained_detector():
         print("[OK] Detector initialized (default model)")
         
         # Generate synthetic spectral features
-        np.random.seed(42)
-        normal_data = np.random.randn(100, 4)  # 100 samples, 4 features
-        anomalies = np.random.randn(10, 4) * 3  # 10 anomalies (larger variance)
+        rng = np.random.default_rng(42)
+        normal_data = rng.standard_normal((100, 4))
+        anomalies = rng.standard_normal((10, 4)) * 3
         all_data = np.vstack([normal_data, anomalies])
         
         predictions = detector.detect(all_data)
-        print(f"[OK] Detection completed")
+        print("[OK] Detection completed")
         print(f"     Total samples: {len(predictions)}")
         print(f"     Anomalies detected: {np.sum(predictions == -1)}")
         print(f"     Normal points: {np.sum(predictions == 1)}")
@@ -94,7 +94,8 @@ def test_model_registry():
         test_model = IsolationForest(contamination=0.1, random_state=42)
         
         # Train on dummy data
-        dummy_data = np.random.randn(50, 3)
+        rng = np.random.default_rng(42)
+        dummy_data = rng.standard_normal((50, 3))
         test_model.fit(dummy_data)
         
         # Save model

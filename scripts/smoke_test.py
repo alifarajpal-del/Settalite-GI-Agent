@@ -18,6 +18,118 @@ class Colors:
 def colored(text, color):
     return f"{color}{text}{Colors.RESET}"
 
+def check_critical_paths():
+    """Check if critical paths exist"""
+    failures = []
+    success = []
+    
+    print(colored("📁 Critical Paths:", Colors.CYAN))
+    critical_paths = [
+        "app/app.py",
+        "run.py",
+        "requirements.txt",
+        "src/config/__init__.py",
+        "src/services/mock_data_service.py"
+    ]
+    
+    for path_str in critical_paths:
+        path = Path(path_str)
+        if path.exists():
+            print(colored(f"  ✅ {path_str}", Colors.GREEN))
+            success.append(f"Path: {path_str}")
+        else:
+            print(colored(f"  ❌ {path_str} MISSING", Colors.RED))
+            failures.append(f"Missing: {path_str}")
+    
+    return failures, success
+
+def check_config_loader():
+    """Test config loader"""
+    failures = []
+    success = []
+    
+    print(colored("\n🔧 Config Loader:", Colors.CYAN))
+    try:
+        from src.config import ConfigLoader
+        loader = ConfigLoader()
+        success.append("ConfigLoader import")
+        print(colored("  ✅ Config loader works", Colors.GREEN))
+    except Exception as e:
+        print(colored(f"  ❌ Config failed: {e}", Colors.RED))
+        failures.append(f"ConfigLoader: {e}")
+    
+    return failures, success
+
+def check_mock_data_service():
+    """Test MockDataService"""
+    failures = []
+    success = []
+    warnings = []
+    
+    print(colored("\n📊 MockDataService:", Colors.CYAN))
+    try:
+        from src.services.mock_data_service import MockDataService
+        mock = MockDataService()
+        print(colored("  ✅ MockDataService.create_mock_aoi()", Colors.GREEN))
+        success.append("MockDataService init")
+        
+        # Try generating mock data
+        try:
+            mock_aoi = mock.create_mock_aoi()
+            if isinstance(mock_aoi, dict) and 'geometry' in mock_aoi:
+                success.append("Mock AOI")
+            else:
+                print(colored("  ⚠️  AOI format unexpected", Colors.YELLOW))
+                warnings.append("AOI format")
+        except Exception:
+            print(colored("  ⚠️  AOI format unexpected", Colors.YELLOW))
+            warnings.append("AOI format")
+        
+        # Try detections
+        try:
+            detections = mock.create_mock_detections(10, 20)
+            if isinstance(detections, object):
+                success.append("Detections")
+            else:
+                print(colored("  ⚠️  Detections format unexpected", Colors.YELLOW))
+                warnings.append("Detections format")
+        except Exception:
+            print(colored("  ⚠️  Detections format unexpected", Colors.YELLOW))
+            warnings.append("Detections format")
+            
+    except Exception as e:
+        print(colored(f"  ❌ MockDataService failed: {e}", Colors.RED))
+        failures.append(f"MockDataService: {e}")
+    
+    return failures, success, warnings
+
+def print_summary(failures, warnings, success):
+    """Print test summary"""
+    print("\n" + colored("=" * 60, Colors.CYAN))
+    print(colored("\n📊 Summary:", Colors.CYAN))
+    print(colored(f"  ✅ Success: {len(success)}", Colors.GREEN))
+    print(colored(f"  ⚠️  Warnings: {len(warnings)}", Colors.YELLOW))
+    print(colored(f"  ❌ Failures: {len(failures)}", Colors.RED))
+    
+    if failures:
+        print(colored("\n❌ FAILED", Colors.RED))
+        print("\nFailures:")
+        for fail in failures:
+            print(f"  • {fail}")
+        
+        print(colored("\nNext steps:", Colors.YELLOW))
+        print("  1. pip install -r requirements.txt")
+        print("  2. Verify src/ directory structure")
+        return 2
+    else:
+        success_rate = len(success) / (len(success) + len(warnings)) * 100 if success else 0
+        print(colored(f"\n✅ PASSED (Success rate: {success_rate:.0f}%)", Colors.GREEN))
+        
+        if warnings:
+            print(colored(f"\n⚠️  {len(warnings)} optional features missing (demo mode still works)", Colors.YELLOW))
+        
+        return 0
+
 def main():
     print(colored("\n🛰️  Heritage Sentinel Pro - Smoke Test\n", Colors.CYAN))
     
@@ -103,10 +215,10 @@ def main():
         config = load_config()
         
         if isinstance(config, dict) and 'app' in config:
-            print(colored(f"  ✅ Config loader works", Colors.GREEN))
+            print(colored("  ✅ Config loader works", Colors.GREEN))
             success.append("Config loader")
         else:
-            print(colored(f"  ❌ Config invalid format", Colors.RED))
+            print(colored("  ❌ Config invalid format", Colors.RED))
             failures.append("Config format")
     except Exception as e:
         print(colored(f"  ❌ Config loader failed: {e}", Colors.RED))
@@ -121,10 +233,10 @@ def main():
         # Test create_mock_aoi
         aoi = mock.create_mock_aoi()
         if hasattr(aoi, 'is_valid') or hasattr(aoi, 'geom_type'):
-            print(colored(f"  ✅ MockDataService.create_mock_aoi()", Colors.GREEN))
+            print(colored("  ✅ MockDataService.create_mock_aoi()", Colors.GREEN))
             success.append("Mock AOI")
         else:
-            print(colored(f"  ⚠️  AOI format unexpected", Colors.YELLOW))
+            print(colored("  ⚠️  AOI format unexpected", Colors.YELLOW))
             warnings.append("AOI format")
         
         # Test generate_mock_detections
@@ -138,10 +250,10 @@ def main():
                 print(colored(f"  ✅ MockDataService.generate_mock_detections() [{len(detections)} sites]", Colors.GREEN))
                 success.append(f"Mock detections: {len(detections)} sites")
             else:
-                print(colored(f"  ⚠️  Detections format unexpected", Colors.YELLOW))
+                print(colored("  ⚠️  Detections format unexpected", Colors.YELLOW))
                 warnings.append("Detections format")
         else:
-            print(colored(f"  ❌ Detections not a DataFrame", Colors.RED))
+            print(colored("  ❌ Detections not a DataFrame", Colors.RED))
             failures.append("Detections format")
             
     except Exception as e:

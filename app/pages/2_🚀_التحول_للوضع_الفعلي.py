@@ -362,8 +362,20 @@ col1, col2 = st.columns([2, 1])
 
 with col1:
     for i, step in enumerate(migration_steps):
-        status = "✅" if step['name'] in completed_steps else "🔄" if i == current_step else "⏳"
-        label = "مكتمل" if step['name'] in completed_steps else "قيد التنفيذ" if i == current_step else "في الانتظار"
+        if step['name'] in completed_steps:
+            status = "✅"
+        elif i == current_step:
+            status = "🔄"
+        else:
+            status = "⏳"
+        
+        if step['name'] in completed_steps:
+            label = "مكتمل"
+        elif i == current_step:
+            label = "قيد التنفيذ"
+        else:
+            label = "في الانتظار"
+        
         st.write(f"{status} **{i+1}. {step['name']}** - {label}")
 
 with col2:

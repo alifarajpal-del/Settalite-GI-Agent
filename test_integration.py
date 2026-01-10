@@ -77,7 +77,7 @@ def test_integration():
         # Try with seed if supported
         try:
             mock = MockDataService()
-        except:
+        except Exception:
             mock = MockDataService()
         
         print("✅ MockDataService instantiated")
@@ -200,7 +200,7 @@ def main():
         total = len(success) + len(warnings)
         success_rate = len(success) / total * 100 if total else 100
         
-        print(f"\n✅ INTEGRATION TEST PASSED")
+        print("\n✅ INTEGRATION TEST PASSED")
         print(f"Success rate: {success_rate:.1f}%")
         
         if warnings:

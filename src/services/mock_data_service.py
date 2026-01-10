@@ -108,7 +108,7 @@ class MockDataService:
         Returns:
             numpy.ndarray: خريطة الشذوذ الوهمية
         """
-        rng = default_rng()
+        rng = default_rng(42)
         anomaly_map = np.zeros((height, width))
         
         # إضافة مناطق شاذة (دوائر بأنماط مختلفة)

@@ -172,8 +172,8 @@ def resample_raster(
     """
     # حساب الأبعاد الجديدة
     scale_factor = abs(src_transform.a) / target_resolution
-    new_width = int(data.shape[1] * scale_factor)
-    new_height = int(data.shape[0] * scale_factor)
+    _ = int(data.shape[1] * scale_factor)
+    _ = int(data.shape[0] * scale_factor)
     
     # حساب التحويل الجديد
     dst_transform, dst_width, dst_height = calculate_default_transform(

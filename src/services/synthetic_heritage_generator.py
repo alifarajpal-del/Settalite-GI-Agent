@@ -49,6 +49,16 @@ class SyntheticHeritageGenerator:
         
         logger.info(f"SyntheticHeritageGenerator initialized (seed={seed})")
     
+    @staticmethod
+    def _get_priority_level(confidence: float) -> str:
+        """Get priority level based on confidence"""
+        if confidence >= 80:
+            return 'high'
+        elif confidence >= 65:
+            return 'medium'
+        else:
+            return 'low'
+    
     def generate(
         self,
         aoi_bbox: Tuple[float, float, float, float],
@@ -72,7 +82,7 @@ class SyntheticHeritageGenerator:
         """
         logger.info(f"Generating {num_sites} sites with pattern: {pattern}")
         
-        min_lon, min_lat, max_lon, max_lat = aoi_bbox
+        _, _, _, _ = aoi_bbox
         
         if pattern == 'grid':
             sites = self._generate_grid_pattern(aoi_bbox, num_sites)
@@ -96,15 +106,16 @@ class SyntheticHeritageGenerator:
         df = pd.DataFrame(sites)
         
         # Add confidence scores
-        df['confidence'] = np.random.uniform(
+        rng = np.random.default_rng(42)
+        df['confidence'] = rng.uniform(
             confidence_range[0],
             confidence_range[1],
             size=len(df)
         )
         
         # Add priority based on confidence
-        df['priority'] = df['confidence'].apply(lambda c: 
-            'high' if c >= 80 else 'medium' if c >= 65 else 'low'
+        df['priority'] = df['confidence'].apply(
+            lambda c: self._get_priority_level(c)
         )
         
         # Add site areas

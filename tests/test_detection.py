@@ -29,7 +29,7 @@ def test_anomaly_detection():
     detector = AnomalyDetectionService(config, logger)
     
     # إنشاء بيانات اختبار
-    rng = default_rng()
+    rng = default_rng(42)
     indices = {
         'NDVI': rng.standard_normal((100, 100)),
         'NDWI': rng.standard_normal((100, 100))
