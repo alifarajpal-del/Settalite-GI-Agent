@@ -3,11 +3,11 @@
 
 ## خلاصة التنفيذ - Deployment Summary
 
-تم حل 7 مشاكل رئيسية خلال التشغيل المباشر + 8 إصلاحات استباقية = **15 تحسين شامل**
+تم حل 8 مشاكل رئيسية خلال التشغيل المباشر + 8 إصلاحات استباقية = **16 تحسين شامل**
 
 ## المشاكل التي تم حلها - Issues Resolved
 
-### الإصلاحات الفورية (7 مشاكل)
+### الإصلاحات الفورية (8 مشاكل)
 Immediate Fixes During Live Deployment
 
 #### 1. ✓ Parameter Name Mismatch
@@ -91,6 +91,27 @@ else:
 indices['NDVI'] = ndvi_data  # ✓ 2D array
 ```
 **Commit:** 7b2a9a6
+
+#### 8. ✓ Array Indexing in Detection Service
+```python
+# Before (❌)
+X_scaled = scaler.fit_transform(X.reshape(-1, X.shape[-1]))
+# ... later ...
+channel = X[:, :, i]  # ERROR: X is now 2D (samples, features), not 3D!
+
+# After (✓)
+original_shape = X.shape[:2]  # Store (height, width) before reshape
+X_scaled = scaler.fit_transform(X.reshape(-1, X.shape[-1]))
+# ... later ...
+anomaly_map = predictions.reshape(original_shape)  # Use stored shape
+
+# Also fix NaN handling:
+X[:, :, i] = np.where(np.isnan(channel), channel_mean, channel)
+# Instead of: channel[np.isnan(channel)] = channel_mean
+```
+**Error:** `IndexError: too many indices for array: array is 1-dimensional, but 3 were indexed`  
+**Root Cause:** After `reshape(-1, n_features)`, array becomes 2D but code tried to use 3D indexing  
+**Commit:** cdcc1d6
 
 ---
 
@@ -247,13 +268,15 @@ RESULTS: 3/3 tests passed
 ## الحالة النهائية - Final Status
 
 ```
-✓ 7/7 immediate fixes applied and tested
+✓ 8/8 immediate fixes applied and tested
 ✓ 8/8 proactive fixes applied and tested
 ✓ 3/3 integration tests passing
+✓ Comprehensive shape validation throughout pipeline
 ✓ System ready for live deployment
 ✓ Comprehensive error handling in place
 ✓ Memory optimization enabled
 ✓ Full provenance tracking maintained
+✓ Diagnostic tools for live data validation
 ```
 
 **النظام جاهز للإنتاج - System Ready for Production!** 🚀
@@ -262,4 +285,5 @@ RESULTS: 3/3 tests passed
 
 **التاريخ:** 2026-01-10  
 **الإصدار:** v1.0.0-hardened  
-**الالتزام النهائي:** fade515  
+**الالتزام النهائي:** cdcc1d6  
+**إصلاحات إضافية:** 8 immediate + 8 proactive = 16 total  
