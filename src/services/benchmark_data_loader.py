@@ -189,7 +189,8 @@ class BenchmarkDataLoader:
             
             # Sample random images
             num_to_sample = min(samples_per_class, len(image_files))
-            sampled_files = np.random.choice(image_files, num_to_sample, replace=False)
+            rng = np.random.default_rng(42)
+            sampled_files = rng.choice(image_files, size=num_to_sample, replace=False)
             
             for image_file in sampled_files:
                 # Extract metadata from filename (if available)
@@ -231,8 +232,9 @@ class BenchmarkDataLoader:
         europe_lat_range = (36.0, 71.0)
         europe_lon_range = (-10.0, 40.0)
         
-        df['lat'] = np.random.uniform(europe_lat_range[0], europe_lat_range[1], num_samples)
-        df['lon'] = np.random.uniform(europe_lon_range[0], europe_lon_range[1], num_samples)
+        rng = np.random.default_rng(42)
+        df['lat'] = rng.uniform(europe_lat_range[0], europe_lat_range[1], num_samples)
+        df['lon'] = rng.uniform(europe_lon_range[0], europe_lon_range[1], num_samples)
         
         # Use heritage relevance as confidence
         df['confidence'] = (df['heritage_relevance'] * 100).clip(0, 100)
@@ -243,7 +245,7 @@ class BenchmarkDataLoader:
         )
         
         # Generate synthetic areas
-        df['area_m2'] = np.random.uniform(500, 5000, num_samples)
+        df['area_m2'] = rng.uniform(500, 5000, num_samples)
         
         # Map class to site_type
         class_to_site_type = {
@@ -297,11 +299,10 @@ class BenchmarkDataLoader:
         """
         logger.info(f"Creating train/test split (test_size={test_size})...")
         
-        np.random.seed(random_state)
-        
         # Shuffle indices
+        rng = np.random.default_rng(random_state)
         indices = np.arange(len(df))
-        np.random.shuffle(indices)
+        rng.shuffle(indices)
         
         # Split point
         split_idx = int(len(df) * (1 - test_size))

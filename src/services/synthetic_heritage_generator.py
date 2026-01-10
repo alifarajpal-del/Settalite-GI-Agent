@@ -291,8 +291,8 @@ class SyntheticHeritageGenerator:
         # Add remaining sites
         while len(sites) < num_sites:
             sites.append({
-                'lat': np.random.uniform(min_lat, max_lat),
-                'lon': np.random.uniform(min_lon, max_lon)
+                'lat': self.rng.uniform(min_lat, max_lat),
+                'lon': self.rng.uniform(min_lon, max_lon)
             })
         
         return sites[:num_sites]
@@ -317,8 +317,8 @@ class SyntheticHeritageGenerator:
         sites = []
         for _ in range(num_sites):
             sites.append({
-                'lat': np.random.uniform(min_lat, max_lat),
-                'lon': np.random.uniform(min_lon, max_lon)
+                'lat': self.rng.uniform(min_lat, max_lat),
+                'lon': self.rng.uniform(min_lon, max_lon)
             })
         
         return sites
@@ -336,7 +336,7 @@ class SyntheticHeritageGenerator:
         site_types_list = list(self.site_types.keys())
         probabilities = list(self.site_types.values())
         
-        assigned = np.random.choice(
+        assigned = self.rng.choice(
             site_types_list,
             size=num_sites,
             p=probabilities
