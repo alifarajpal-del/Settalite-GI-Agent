@@ -14,6 +14,7 @@ from typing import Dict, List, Optional, Any, TYPE_CHECKING
 from datetime import datetime
 import logging
 import numpy as np
+import gc
 
 # Type checking imports (not evaluated at runtime)
 if TYPE_CHECKING:
@@ -495,6 +496,7 @@ class PipelineService:
             
             result.step_completed = 'process'
             self.logger.info(f"✓ Successfully calculated {len(indices)} spectral indices")
+            gc.collect()  # Free memory from band processing
             
         except Exception as e:
             error_msg = f"STEP 2 FAILED: {type(e).__name__}: {str(e)}"

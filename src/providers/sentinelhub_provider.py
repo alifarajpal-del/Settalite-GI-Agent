@@ -4,6 +4,7 @@ Implements actual imagery download and NDVI/NDWI computation.
 """
 
 import logging
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime
 from dataclasses import dataclass
@@ -137,6 +138,24 @@ class SentinelHubProvider:
         except Exception as e:
             self.logger.error(f"Scene search failed: {e}")
             return []
+    
+    @retry(
+
+    
+        stop=stop_after_attempt(3),
+
+    
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+
+    
+        retry=retry_if_exception_type((ConnectionError, TimeoutError, Exception)),
+
+    
+        reraise=True
+
+    
+    )
+
     
     def fetch_band_stack(
         self,
