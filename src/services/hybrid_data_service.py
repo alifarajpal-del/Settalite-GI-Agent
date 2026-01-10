@@ -150,6 +150,26 @@ class HybridDataService:
         logger.info("✓ Data sources combined successfully")
         return combined
     
+    def _should_keep_site(self, i: int, j: int, df: pd.DataFrame, keep_indices: list) -> bool:
+        """
+        Determine if site i should be kept when compared with site j.
+        
+        Args:
+            i: Index of current site
+            j: Index of comparison site
+            df: Original DataFrame with confidence scores
+            keep_indices: List of indices to keep
+            
+        Returns:
+            True if site i should remain in keep_indices, False if it should be replaced
+        """
+        if df.iloc[j]['confidence'] > df.iloc[i]['confidence']:
+            # Replace with higher confidence site
+            keep_indices.remove(i)
+            keep_indices.append(j)
+            return False
+        return True
+
     def _deduplicate_sites(
         self,
         df: pd.DataFrame,
@@ -205,10 +225,7 @@ class HybridDataService:
                 
                 if distance < threshold_m:
                     # Sites are duplicates - keep the one with higher confidence
-                    if df.iloc[j]['confidence'] > df.iloc[i]['confidence']:
-                        # Replace with higher confidence site
-                        keep_indices.remove(i)
-                        keep_indices.append(j)
+                    if not self._should_keep_site(i, j, df, keep_indices):
                         removed_count += 1
                         break
                     else:

@@ -136,6 +136,64 @@ def validate_config(config: Dict[str, Any]) -> tuple[bool, list[str]]:
     return len(warnings) == 0, warnings
 
 
+def _load_file_config(config_path: Path, config: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Load configuration from file and merge with base config.
+    
+    Args:
+        config_path: Path to config file
+        config: Base configuration dictionary
+        
+    Returns:
+        Merged configuration dictionary
+    """
+    if config_path.exists():
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                file_config = yaml.safe_load(f)
+                if file_config:
+                    # Deep merge file config over defaults
+                    return deep_merge(config, file_config)
+        except Exception as e:
+            print(f"Warning: Failed to load config from {config_path}: {e}")
+            print("Using default configuration")
+    return config
+
+def _merge_streamlit_secrets(config: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Merge Streamlit secrets into configuration.
+    
+    Args:
+        config: Base configuration dictionary
+        
+    Returns:
+        Configuration with merged secrets
+    """
+    try:
+        import streamlit as st
+        if hasattr(st, 'secrets'):
+            # Merge sentinelhub secrets
+            if 'sentinelhub' in st.secrets:
+                if 'sentinelhub' not in config:
+                    config['sentinelhub'] = {}
+                # Convert Streamlit secrets to dict and merge
+                sh_secrets = dict(st.secrets['sentinelhub'])
+                config['sentinelhub'].update(sh_secrets)
+                
+                # Log success (without revealing secrets)
+                if sh_secrets.get('client_id') and sh_secrets.get('client_secret'):
+                    print("✓ Sentinel Hub OAuth credentials loaded from Streamlit secrets")
+            
+            # Merge gee secrets
+            if 'gee' in st.secrets:
+                if 'gee' not in config:
+                    config['gee'] = {}
+                config['gee'].update(dict(st.secrets['gee']))
+    except (ImportError, FileNotFoundError, AttributeError):
+        # Not in Streamlit environment or secrets not configured
+        pass
+    return config
+
 def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
     """
     Load configuration with fallback and environment variable merging
@@ -163,44 +221,13 @@ def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
         config_path = Path(config_path)
     
     # Load from file if exists
-    if config_path.exists():
-        try:
-            with open(config_path, 'r', encoding='utf-8') as f:
-                file_config = yaml.safe_load(f)
-                if file_config:
-                    # Deep merge file config over defaults
-                    config = deep_merge(config, file_config)
-        except Exception as e:
-            print(f"Warning: Failed to load config from {config_path}: {e}")
-            print("Using default configuration")
+    config = _load_file_config(config_path, config)
     
     # Merge environment variables
     config = merge_env_variables(config)
     
     # Merge Streamlit secrets (highest priority for credentials)
-    try:
-        import streamlit as st
-        if hasattr(st, 'secrets'):
-            # Merge sentinelhub secrets
-            if 'sentinelhub' in st.secrets:
-                if 'sentinelhub' not in config:
-                    config['sentinelhub'] = {}
-                # Convert Streamlit secrets to dict and merge
-                sh_secrets = dict(st.secrets['sentinelhub'])
-                config['sentinelhub'].update(sh_secrets)
-                
-                # Log success (without revealing secrets)
-                if sh_secrets.get('client_id') and sh_secrets.get('client_secret'):
-                    print("✓ Sentinel Hub OAuth credentials loaded from Streamlit secrets")
-            
-            # Merge gee secrets
-            if 'gee' in st.secrets:
-                if 'gee' not in config:
-                    config['gee'] = {}
-                config['gee'].update(dict(st.secrets['gee']))
-    except (ImportError, FileNotFoundError, AttributeError) as e:
-        # Not in Streamlit environment or secrets not configured
-        pass
+    config = _merge_streamlit_secrets(config)
     
     # Validate
     is_valid, warnings = validate_config(config)

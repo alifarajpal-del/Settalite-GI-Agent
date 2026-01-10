@@ -528,7 +528,6 @@ class PipelineService:
             )
             
             anomaly_map = detection_result.get('anomaly_map')
-            anomaly_surface = detection_result.get('anomaly_surface', anomaly_map)
             
             if anomaly_map is None:
                 error_msg = "Failed to detect anomalies - no anomaly map returned"

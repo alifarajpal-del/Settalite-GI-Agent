@@ -217,6 +217,43 @@ def test_full_pipeline():
     except Exception as e:
         return False, f"خطأ: {str(e)}"
 
+def _handle_library_check(step, status):
+    """Handle library check step"""
+    available, missing = check_libraries()
+    if missing:
+        status.update(label=f"⚠️ {step['name']} - مكتمل مع تحذيرات", state="complete")
+        st.warning(f"مكتبات مفقودة: {', '.join(missing)}")
+        st.success(f"مكتبات متوفرة: {', '.join(available)}")
+        return True
+    else:
+        status.update(label=f"✅ {step['name']} - ناجح", state="complete")
+        st.success(f"جميع المكتبات متوفرة ({len(available)} مكتبة)")
+        return True
+
+def _handle_service_files_check(step, status):
+    """Handle service files check step"""
+    existing, missing = check_service_files()
+    if missing:
+        status.update(label=f"❌ {step['name']} - فشل", state="error")
+        st.error(f"ملفات مفقودة: {', '.join(missing)}")
+        return False
+    else:
+        status.update(label=f"✅ {step['name']} - ناجح", state="complete")
+        st.success(f"جميع ملفات الخدمات موجودة ({len(existing)} ملف)")
+        return True
+
+def _handle_test_step(step, status, test_func):
+    """Handle generic test step (processing, detection, coordinate, pipeline)"""
+    success, message = test_func()
+    if success:
+        status.update(label=f"✅ {step['name']} - ناجح", state="complete")
+        st.success(message)
+        return True
+    else:
+        status.update(label=f"❌ {step['name']} - فشل", state="error")
+        st.error(message)
+        return False
+
 def run_migration_step(step_index):
     """تشغيل خطوة تحول"""
     step = migration_steps[step_index]
@@ -226,72 +263,20 @@ def run_migration_step(step_index):
         time.sleep(0.5)
         
         try:
-            if step['test_function'] == 'check_libraries':
-                available, missing = check_libraries()
-                if missing:
-                    status.update(label=f"⚠️ {step['name']} - مكتمل مع تحذيرات", state="complete")
-                    st.warning(f"مكتبات مفقودة: {', '.join(missing)}")
-                    st.success(f"مكتبات متوفرة: {', '.join(available)}")
-                    return True
-                else:
-                    status.update(label=f"✅ {step['name']} - ناجح", state="complete")
-                    st.success(f"جميع المكتبات متوفرة ({len(available)} مكتبة)")
-                    return True
+            test_func = step['test_function']
             
-            elif step['test_function'] == 'check_service_files':
-                existing, missing = check_service_files()
-                if missing:
-                    status.update(label=f"❌ {step['name']} - فشل", state="error")
-                    st.error(f"ملفات مفقودة: {', '.join(missing)}")
-                    return False
-                else:
-                    status.update(label=f"✅ {step['name']} - ناجح", state="complete")
-                    st.success(f"جميع ملفات الخدمات موجودة ({len(existing)} ملف)")
-                    return True
-            
-            elif step['test_function'] == 'test_processing_service':
-                success, message = test_processing_service()
-                if success:
-                    status.update(label=f"✅ {step['name']} - ناجح", state="complete")
-                    st.success(message)
-                    return True
-                else:
-                    status.update(label=f"❌ {step['name']} - فشل", state="error")
-                    st.error(message)
-                    return False
-            
-            elif step['test_function'] == 'test_detection_service':
-                success, message = test_detection_service()
-                if success:
-                    status.update(label=f"✅ {step['name']} - ناجح", state="complete")
-                    st.success(message)
-                    return True
-                else:
-                    status.update(label=f"❌ {step['name']} - فشل", state="error")
-                    st.error(message)
-                    return False
-            
-            elif step['test_function'] == 'test_coordinate_extractor':
-                success, message = test_coordinate_extractor()
-                if success:
-                    status.update(label=f"✅ {step['name']} - ناجح", state="complete")
-                    st.success(message)
-                    return True
-                else:
-                    status.update(label=f"❌ {step['name']} - فشل", state="error")
-                    st.error(message)
-                    return False
-            
-            elif step['test_function'] == 'test_full_pipeline':
-                success, message = test_full_pipeline()
-                if success:
-                    status.update(label=f"✅ {step['name']} - ناجح", state="complete")
-                    st.success(message)
-                    return True
-                else:
-                    status.update(label=f"❌ {step['name']} - فشل", state="error")
-                    st.error(message)
-                    return False
+            if test_func == 'check_libraries':
+                return _handle_library_check(step, status)
+            elif test_func == 'check_service_files':
+                return _handle_service_files_check(step, status)
+            elif test_func == 'test_processing_service':
+                return _handle_test_step(step, status, test_processing_service)
+            elif test_func == 'test_detection_service':
+                return _handle_test_step(step, status, test_detection_service)
+            elif test_func == 'test_coordinate_extractor':
+                return _handle_test_step(step, status, test_coordinate_extractor)
+            elif test_func == 'test_full_pipeline':
+                return _handle_test_step(step, status, test_full_pipeline)
             
         except Exception as e:
             status.update(label=f"❌ {step['name']} - خطأ", state="error")
