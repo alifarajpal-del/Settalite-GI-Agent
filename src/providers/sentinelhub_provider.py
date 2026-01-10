@@ -155,20 +155,21 @@ class SentinelHubProvider:
             elif bbox_area_km2 > 50000:
                 self.logger.warning(f"⚠️ AOI is very large ({bbox_area_km2:.0f} km²) - search may be slow")
             
-            # استخدام معايير STAC الرسمية بدلاً من filter نصي
-            query = {"eo:cloud_cover": {"lt": max_cloud_cover}}
+            # Use CQL2 filter for Catalog 1.0.0 compatibility
+            cql2_filter = f"eo:cloud_cover <= {max_cloud_cover}"
             fields = {
                 "include": ["id", "properties.datetime", "properties.eo:cloud_cover", "properties.s2:data_coverage"],
                 "exclude": []
             }
             
-            self.logger.info(f"🔎 Using STAC query: {query}")
+            self.logger.info(f"🔎 Using CQL2 filter: {cql2_filter}")
             
             search_iterator = catalog.search(
                 DataCollection.SENTINEL2_L2A,
                 bbox=sh_bbox,
                 time=time_interval,
-                query=query,
+                filter=cql2_filter,
+                filter_lang="cql2-text",
                 fields=fields
             )
             
@@ -215,7 +216,7 @@ class SentinelHubProvider:
                 warning_msg += f"\n\n📋 معايير البحث:"
                 warning_msg += f"\n  • المنطقة: {bbox}"
                 warning_msg += f"\n  • الفترة: {(end_date - start_date).days} يوم"
-                warning_msg += f"\n  • الغيوم: < {max_cloud_cover}%"
+                warning_msg += f"\n  • الغيوم: <= {max_cloud_cover}%"
                 warning_msg += f"\n\n💡 اقتراحات:"
                 warning_msg += f"\n  1. جرّب فترة زمنية أطول (6-12 شهر)"
                 warning_msg += f"\n  2. ارفع حد الغيوم إلى 50-80%"
@@ -227,6 +228,8 @@ class SentinelHubProvider:
             else:
                 self.logger.info(f"✓ Found {len(scenes)} scenes matching criteria")
                 if scenes:
+                    first_scene = scenes[0]
+                    self.logger.info(f"  First scene: id={first_scene['id']}, datetime={first_scene['datetime']}, cloud_cover={first_scene['cloud_cover']:.1f}%")
                     avg_cloud = sum(s['cloud_cover'] for s in scenes) / len(scenes)
                     self.logger.info(f"  Average cloud cover: {avg_cloud:.1f}%")
                 
@@ -310,7 +313,21 @@ class SentinelHubProvider:
             size = bbox_to_dimensions(sh_bbox, resolution=resolution)
             
             # Search scenes first
-            scenes = self.search_scenes(bbox, time_range[0], time_range[1], max_cloud_cover)
+            scenes, search_error = self.search_scenes(bbox, time_range[0], time_range[1], max_cloud_cover)
+            
+            if search_error:
+                return ImageryResult(
+                    status='FAILED',
+                    bands={},
+                    indices={},
+                    scenes_processed=0,
+                    resolution=(resolution, resolution),
+                    bbox=bbox,
+                    failure_reason=f'Scene search failed: {search_error}'
+                )
+            
+            if not isinstance(scenes, list):
+                raise TypeError(f"Expected scenes to be list, got {type(scenes).__name__}")
             
             if len(scenes) == 0:
                 return ImageryResult(
@@ -320,7 +337,7 @@ class SentinelHubProvider:
                     scenes_processed=0,
                     resolution=(resolution, resolution),
                     bbox=bbox,
-                    failure_reason='No scenes found'
+                    failure_reason='No scenes found - try increasing time range, cloud cover limit, or search radius'
                 )
             
             # Limit to reasonable number for processing
