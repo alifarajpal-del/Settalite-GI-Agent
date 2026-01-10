@@ -1,0 +1,14 @@
+{
+  // Recommended extensions for this workspace
+  "recommendations": [
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "ms-toolsai.jupyter"
+  ],
+  
+  // Extensions to NOT use in this workspace
+  // SonarLint causes too many non-critical warnings
+  "unwantedRecommendations": [
+    "sonarsource.sonarlint-vscode"
+  ]
+}
