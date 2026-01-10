@@ -351,12 +351,45 @@ def render_operations(labels):
         )
     
     with col2:
-        months_back = st.selectbox(
-            labels['date_range'],
-            options=[6, 12, 24, 36],
-            index=2,
-            format_func=lambda x: f"Last {x} months" + (" (Default)" if x==24 else "")
+        # Use date range picker instead of months_back
+        st.markdown("**📅 Time Range**")
+        date_mode = st.radio(
+            "Date Selection",
+            options=["Quick", "Custom"],
+            horizontal=True,
+            label_visibility="collapsed"
         )
+        
+        if date_mode == "Quick":
+            months_back = st.selectbox(
+                "Period",
+                options=[6, 12, 24, 36],
+                index=2,
+                format_func=lambda x: f"Last {x} months",
+                label_visibility="collapsed"
+            )
+            end_date_value = datetime.now()
+            start_date_value = end_date_value - timedelta(days=months_back * 30)
+        else:
+            # Custom date range
+            col2a, col2b = st.columns(2)
+            with col2a:
+                start_date_value = st.date_input(
+                    "From",
+                    value=datetime(2023, 1, 1),
+                    min_value=datetime(2015, 1, 1),
+                    max_value=datetime.now()
+                )
+            with col2b:
+                end_date_value = st.date_input(
+                    "To",
+                    value=datetime.now(),
+                    min_value=datetime(2015, 1, 1),
+                    max_value=datetime.now()
+                )
+            # Convert dates to datetime
+            start_date_value = datetime.combine(start_date_value, datetime.min.time())
+            end_date_value = datetime.combine(end_date_value, datetime.min.time())
     
     with col3:
         # UI shows friendly names, but internally we use 'demo'/'live'
@@ -392,7 +425,7 @@ def render_operations(labels):
     _, center_col, _ = st.columns([1, 2, 1])
     
     if center_col.button(labels['button_scan'], use_container_width=True, type="primary"):
-        run_analysis(target, scan_radius, months_back, data_source, model_mode, cloud_cover_max, labels)
+        run_analysis(target, scan_radius, start_date_value, end_date_value, data_source, model_mode, cloud_cover_max, labels)
     
     # === RESULTS SECTION ===
     last_result = st.session_state.get('last_result')
@@ -436,7 +469,7 @@ def render_map(target):
     st_folium(m, height=400, width=None, returned_objects=[])
 
 
-def run_analysis(target, radius, months_back, data_source, model_mode, cloud_cover_max, labels):
+def run_analysis(target, radius, start_date, end_date, data_source, model_mode, cloud_cover_max, labels):
     """Run pipeline analysis with progress indicators."""
     
     if not PIPELINE_AVAILABLE:
@@ -449,9 +482,8 @@ def run_analysis(target, radius, months_back, data_source, model_mode, cloud_cov
         st.code("pip install shapely", language="bash")
         return
     
-    # Calculate date range
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=months_back * 30)
+    # Dates are already datetime objects from the UI
+    # No need to calculate from months_back
     
     # Create AOI geometry from center point + radius
     try:
@@ -467,6 +499,17 @@ def run_analysis(target, radius, months_back, data_source, model_mode, cloud_cov
         
         # Create request (mode will be normalized in __post_init__)
         # 'real' will auto-convert to 'live'
+        
+        # Display search parameters
+        st.info(f"""
+        **🔍 Search Parameters:**
+        - 📍 Location: ({lat:.4f}, {lon:.4f})
+        - 📐 Scan Radius: {radius}m
+        - 📅 Date Range: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')} ({(end_date - start_date).days} days)
+        - ☁️ Cloud Cover: ≤{cloud_cover_max}%
+        - 🛰️ Mode: {data_source}
+        """)
+        
         request = PipelineRequest(
             aoi_geometry=aoi_geom,
             start_date=start_date.strftime('%Y-%m-%d'),
