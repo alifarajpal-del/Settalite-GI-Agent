@@ -152,11 +152,21 @@ class SentinelHubProvider:
             elif bbox_area_km2 > 50000:
                 self.logger.warning(f"⚠️ AOI is very large ({bbox_area_km2:.0f} km²) - search may be slow")
             
+            # استخدام معايير STAC الرسمية بدلاً من filter نصي
+            query = {"eo:cloud_cover": {"lt": max_cloud_cover}}
+            fields = {
+                "include": ["id", "properties.datetime", "properties.eo:cloud_cover", "properties.s2:data_coverage"],
+                "exclude": []
+            }
+            
+            self.logger.info(f"🔎 Using STAC query: {query}")
+            
             search_iterator = catalog.search(
                 DataCollection.SENTINEL2_L2A,
                 bbox=sh_bbox,
                 time=time_interval,
-                filter=f"eo:cloud_cover < {max_cloud_cover}"
+                query=query,
+                fields=fields
             )
             
             scenes = []
