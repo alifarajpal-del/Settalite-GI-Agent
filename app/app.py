@@ -392,7 +392,7 @@ def render_operations(labels):
     _, center_col, _ = st.columns([1, 2, 1])
     
     if center_col.button(labels['button_scan'], use_container_width=True, type="primary"):
-        run_analysis(target, scan_radius, months_back, data_source, model_mode, labels)
+        run_analysis(target, scan_radius, months_back, data_source, model_mode, cloud_cover_max, labels)
     
     # === RESULTS SECTION ===
     last_result = st.session_state.get('last_result')
@@ -436,7 +436,7 @@ def render_map(target):
     st_folium(m, height=400, width=None, returned_objects=[])
 
 
-def run_analysis(target, radius, months_back, data_source, model_mode, labels):
+def run_analysis(target, radius, months_back, data_source, model_mode, cloud_cover_max, labels):
     """Run pipeline analysis with progress indicators."""
     
     if not PIPELINE_AVAILABLE:
