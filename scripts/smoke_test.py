@@ -51,7 +51,7 @@ def check_config_loader():
     print(colored("\n🔧 Config Loader:", Colors.CYAN))
     try:
         from src.config import ConfigLoader
-        loader = ConfigLoader()
+        ConfigLoader()
         success.append("ConfigLoader import")
         print(colored("  ✅ Config loader works", Colors.GREEN))
     except Exception as e:

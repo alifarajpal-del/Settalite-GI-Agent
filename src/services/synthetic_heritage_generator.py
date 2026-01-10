@@ -33,9 +33,9 @@ class SyntheticHeritageGenerator:
         Args:
             seed: Random seed for reproducibility
         """
-        self.seed = seed
-        if seed is not None:
-            np.random.seed(seed)
+        self.seed = seed if seed is not None else 42
+        self.rng = np.random.default_rng(self.seed)
+        np.random.seed(self.seed)
         
         # Site type probabilities
         self.site_types = {
@@ -47,7 +47,7 @@ class SyntheticHeritageGenerator:
             'agricultural': 0.10
         }
         
-        logger.info(f"SyntheticHeritageGenerator initialized (seed={seed})")
+        logger.info(f"SyntheticHeritageGenerator initialized (seed={self.seed})")
     
     @staticmethod
     def _get_priority_level(confidence: float) -> str:
@@ -106,8 +106,7 @@ class SyntheticHeritageGenerator:
         df = pd.DataFrame(sites)
         
         # Add confidence scores
-        rng = np.random.default_rng(42)
-        df['confidence'] = rng.uniform(
+        df['confidence'] = self.rng.uniform(
             confidence_range[0],
             confidence_range[1],
             size=len(df)
@@ -119,7 +118,7 @@ class SyntheticHeritageGenerator:
         )
         
         # Add site areas
-        df['area_m2'] = np.random.uniform(
+        df['area_m2'] = self.rng.uniform(
             area_range[0],
             area_range[1],
             size=len(df)
@@ -166,8 +165,8 @@ class SyntheticHeritageGenerator:
         for lon in lons:
             for lat in lats:
                 # Add small random offset (±5% of spacing)
-                lon_offset = np.random.uniform(-0.05, 0.05) * (max_lon - min_lon) / grid_size
-                lat_offset = np.random.uniform(-0.05, 0.05) * (max_lat - min_lat) / grid_size
+                lon_offset = self.rng.uniform(-0.05, 0.05) * (max_lon - min_lon) / grid_size
+                lat_offset = self.rng.uniform(-0.05, 0.05) * (max_lat - min_lat) / grid_size
                 
                 sites.append({
                     'lat': lat + lat_offset,
@@ -199,11 +198,11 @@ class SyntheticHeritageGenerator:
         min_lon, min_lat, max_lon, max_lat = aoi_bbox
         
         # Generate 3-5 cluster centers
-        num_clusters = np.random.randint(3, 6)
+        num_clusters = self.rng.integers(3, 6)
         cluster_centers = [
             (
-                np.random.uniform(min_lon, max_lon),
-                np.random.uniform(min_lat, max_lat)
+                self.rng.uniform(min_lon, max_lon),
+                self.rng.uniform(min_lat, max_lat)
             )
             for _ in range(num_clusters)
         ]
@@ -215,8 +214,8 @@ class SyntheticHeritageGenerator:
             # Generate sites around cluster center
             for _ in range(sites_per_cluster):
                 # Use normal distribution for clustering effect
-                radius_deg = np.random.exponential(0.01)  # Exponential decay
-                angle = np.random.uniform(0, 2 * np.pi)
+                radius_deg = self.rng.exponential(0.01)
+                angle = self.rng.uniform(0, 2 * np.pi)
                 
                 lon = center_lon + radius_deg * np.cos(angle)
                 lat = center_lat + radius_deg * np.sin(angle)
@@ -233,8 +232,8 @@ class SyntheticHeritageGenerator:
         # Add remaining sites randomly
         while len(sites) < num_sites:
             sites.append({
-                'lat': np.random.uniform(min_lat, max_lat),
-                'lon': np.random.uniform(min_lon, max_lon)
+                'lat': self.rng.uniform(min_lat, max_lat),
+                'lon': self.rng.uniform(min_lon, max_lon)
             })
         
         return sites[:num_sites]
@@ -257,16 +256,16 @@ class SyntheticHeritageGenerator:
         min_lon, min_lat, max_lon, max_lat = aoi_bbox
         
         # Generate 2-3 axes
-        num_axes = np.random.randint(2, 4)
+        num_axes = self.rng.integers(2, 4)
         sites = []
         sites_per_axis = num_sites // num_axes
         
         for _ in range(num_axes):
             # Random start and end points
-            start_lon = np.random.uniform(min_lon, max_lon)
-            start_lat = np.random.uniform(min_lat, max_lat)
-            end_lon = np.random.uniform(min_lon, max_lon)
-            end_lat = np.random.uniform(min_lat, max_lat)
+            start_lon = self.rng.uniform(min_lon, max_lon)
+            start_lat = self.rng.uniform(min_lat, max_lat)
+            end_lon = self.rng.uniform(min_lon, max_lon)
+            end_lat = self.rng.uniform(min_lat, max_lat)
             
             # Generate sites along axis
             for i in range(sites_per_axis):
@@ -276,7 +275,7 @@ class SyntheticHeritageGenerator:
                 lat = start_lat + t * (end_lat - start_lat)
                 
                 # Add perpendicular offset (within ±0.002 degrees)
-                perp_offset = np.random.uniform(-0.002, 0.002)
+                perp_offset = self.rng.uniform(-0.002, 0.002)
                 lon += perp_offset * (end_lat - start_lat)  # Perpendicular direction
                 lat -= perp_offset * (end_lon - start_lon)
                 
