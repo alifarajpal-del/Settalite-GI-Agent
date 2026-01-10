@@ -28,6 +28,9 @@ try:
 except ImportError:
     PANDAS_AVAILABLE = False
 
+# Constants
+DOWNLOAD_GEOJSON_LABEL = "📥 Download GeoJSON"
+
 try:
     from shapely.geometry import Point
     import dataclasses
@@ -328,12 +331,23 @@ def render_operations(labels):
     
     col1, col2, col3, col4 = st.columns(4)
     
+    def format_scan_radius(x):
+        label = f"{x}m "
+        if x == 100:
+            return label + "(Spot)"
+        elif x == 500:
+            return label + "(Default)"
+        elif x >= 1000:
+            return label + "(Context)"
+        else:
+            return label
+    
     with col1:
         scan_radius = st.selectbox(
             labels['scan_radius'],
             options=[100, 500, 1000, 2000],
             index=1,
-            format_func=lambda x: f"{x}m " + ("(Spot)" if x==100 else "(Default)" if x==500 else "(Context)" if x>=1000 else "")
+            format_func=format_scan_radius
         )
     
     with col2:
@@ -707,7 +721,7 @@ def render_results(result, labels):
             with open(geojson_path, 'r', encoding='utf-8') as f:
                 geojson_data = f.read()
             st.download_button(
-                "📥 Download GeoJSON",
+                DOWNLOAD_GEOJSON_LABEL,
                 geojson_data,
                 "heritage_sentinel_results.geojson",
                 "application/geo+json",
@@ -718,16 +732,16 @@ def render_results(result, labels):
             try:
                 geojson_data = result.dataframe.to_json()
                 st.download_button(
-                    "📥 Download GeoJSON",
+                    DOWNLOAD_GEOJSON_LABEL,
                     geojson_data,
                     "heritage_sentinel_results.geojson",
                     "application/geo+json",
                     use_container_width=True
                 )
             except Exception:
-                st.button("📥 Download GeoJSON", disabled=True, use_container_width=True)
+                st.button(DOWNLOAD_GEOJSON_LABEL, disabled=True, use_container_width=True)
         else:
-            st.button("📥 Download GeoJSON", disabled=True, use_container_width=True)
+            st.button(DOWNLOAD_GEOJSON_LABEL, disabled=True, use_container_width=True)
     
     with col3:
         st.button("📄 Generate Report", disabled=True, use_container_width=True)
