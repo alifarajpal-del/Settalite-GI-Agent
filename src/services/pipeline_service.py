@@ -360,6 +360,7 @@ class PipelineService:
                 band_result = sh_provider.fetch_band_stack(
                     bbox=bbox,
                     time_range=(start_dt, end_dt),
+                    bands=['B03', 'B04', 'B08'],  # Green, Red, NIR for NDVI/NDWI
                     resolution=10  # 10m resolution
                 )
                 
