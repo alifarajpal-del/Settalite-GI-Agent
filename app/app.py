@@ -519,85 +519,59 @@ def run_analysis(target, radius, months_back, data_source, model_mode, labels):
             st.code(str(e), language="text")
 
 
-def render_results(result, labels):
-    """
-    Render structured analysis results.
+def _render_live_failed_status(result):
+    """Render LIVE_FAILED status with setup instructions"""
+    st.error("🔴 Live Analysis Failed")
+    st.markdown(f"""
+    <div class='result-section' style='background-color: #ffe6e6; border-left: 4px solid #dc3545;'>
+    <h4>Analysis could not be completed with live satellite data</h4>
+    <p><strong>Reason:</strong> {result.failure_reason}</p>
+    </div>
+    """, unsafe_allow_html=True)
     
-    PROMPT 5: No-Fake-Live Contract enforcement:
-    - LIVE_FAILED → Only show failure reason, no results
-    - DEMO_OK → Show results with clear "Demo Mode" label
-    - LIVE_OK → Show results with provenance panel
-    """
+    if result.errors:
+        with st.expander("🔍 Error Details"):
+            for error in result.errors:
+                st.code(error, language="text")
     
-    if not result:
-        st.error("Analysis did not complete successfully")
-        return
+    if result.warnings:
+        with st.expander("⚠️ Warnings"):
+            for warning in result.warnings:
+                st.warning(warning)
     
-    # === HANDLE LIVE_FAILED ===
-    if result.status == 'LIVE_FAILED':
-        st.error("🔴 Live Analysis Failed")
-        st.markdown(f"""
-        <div class='result-section' style='background-color: #ffe6e6; border-left: 4px solid #dc3545;'>
-        <h4>Analysis could not be completed with live satellite data</h4>
-        <p><strong>Reason:</strong> {result.failure_reason}</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        if result.errors:
-            with st.expander("🔍 Error Details"):
-                for error in result.errors:
-                    st.code(error, language="text")
-        
-        if result.warnings:
-            with st.expander("⚠️ Warnings"):
-                for warning in result.warnings:
-                    st.warning(warning)
-        
-        # Show setup instructions
-        st.markdown("### 🛠️ Setup Required")
-        st.markdown("""
-        To enable live satellite analysis:
-        
-        1. **Sentinel Hub** (Required):
-           - Get free account at [sentinelhub.com](https://www.sentinel-hub.com/)
-           - Add `SENTINELHUB_CLIENT_ID` and `SENTINELHUB_CLIENT_SECRET` to Streamlit secrets
-        
-        2. **Google Earth Engine** (Optional but recommended):
-           - Install: `pip install earthengine-api`
-           - Authenticate: `earthengine authenticate`
-           - Or provide service account key in secrets
-        """)
-        
-        return  # No results to show for LIVE_FAILED
+    # Show setup instructions
+    st.markdown("### 🛠️ Setup Required")
+    st.markdown("""
+    To enable live satellite analysis:
     
-    # === HANDLE SUCCESS (DEMO_OK or LIVE_OK) ===
-    if not result.success:
-        st.error("Analysis did not complete successfully")
-        if result.errors:
-            with st.expander("Errors"):
-                for error in result.errors:
-                    st.error(error)
-        return
+    1. **Sentinel Hub** (Required):
+       - Get free account at [sentinelhub.com](https://www.sentinel-hub.com/)
+       - Add `SENTINELHUB_CLIENT_ID` and `SENTINELHUB_CLIENT_SECRET` to Streamlit secrets
     
-    st.header(labels['results_title'])
-    
-    # === LIVE PROOF PANEL (for LIVE_OK only) ===
-    if result.status == 'LIVE_OK' and result.provenance:
-        st.markdown("### 🛰️ Live Data Provenance")
-        prov = result.provenance
-        st.markdown(f"""
-        <div class='result-section' style='background-color: #e8f5e9; border-left: 4px solid #4caf50;'>
-        <strong>Provider:</strong> {prov.get('provider', 'Unknown')}<br>
-        <strong>Scenes Count:</strong> {prov.get('scenes_count', 0)}<br>
-        <strong>Time Range:</strong> {prov.get('time_range', ['N/A', 'N/A'])[0]} to {prov.get('time_range', ['N/A', 'N/A'])[1]}<br>
-        <strong>Resolution:</strong> {prov.get('resolution', (0, 0))[0]}m x {prov.get('resolution', (0, 0))[1]}m<br>
-        <strong>Cloud Stats:</strong> Min: {prov.get('cloud_stats', {}).get('min', 0):.1f}%, Mean: {prov.get('cloud_stats', {}).get('mean', 0):.1f}%, Max: {prov.get('cloud_stats', {}).get('max', 0):.1f}%<br>
-        <strong>GEE Available:</strong> {'✓ Yes' if prov.get('gee_available') else '✗ No'}
-        </div>
-        """, unsafe_allow_html=True)
-        st.divider()
-    
-    # === 1. SOURCES USED ===
+    2. **Google Earth Engine** (Optional but recommended):
+       - Install: `pip install earthengine-api`
+       - Authenticate: `earthengine authenticate`
+       - Or provide service account key in secrets
+    """)
+
+def _render_live_ok_provenance(result):
+    """Render LIVE_OK provenance panel"""
+    st.markdown("### 🛰️ Live Data Provenance")
+    prov = result.provenance
+    st.markdown(f"""
+    <div class='result-section' style='background-color: #e8f5e9; border-left: 4px solid #4caf50;'>
+    <strong>Provider:</strong> {prov.get('provider', 'Unknown')}<br>
+    <strong>Scenes Count:</strong> {prov.get('scenes_count', 0)}<br>
+    <strong>Time Range:</strong> {prov.get('time_range', ['N/A', 'N/A'])[0]} to {prov.get('time_range', ['N/A', 'N/A'])[1]}<br>
+    <strong>Resolution:</strong> {prov.get('resolution', (0, 0))[0]}m x {prov.get('resolution', (0, 0))[1]}m<br>
+    <strong>Cloud Stats:</strong> Min: {prov.get('cloud_stats', {}).get('min', 0):.1f}%, Mean: {prov.get('cloud_stats', {}).get('mean', 0):.1f}%, Max: {prov.get('cloud_stats', {}).get('max', 0):.1f}%<br>
+    <strong>GEE Available:</strong> {'✓ Yes' if prov.get('gee_available') else '✗ No'}
+    </div>
+    """, unsafe_allow_html=True)
+    st.divider()
+
+def _render_sources_section(result, labels):
+    """Render sources used section"""
     with st.container():
         st.markdown(f"### {labels['sources_title']}")
         
@@ -625,8 +599,9 @@ def render_results(result, labels):
                 providers=result.provenance.get('provider', 'N/A') if result.provenance else 'N/A',
                 time_range=f"{result.provenance.get('time_range', ['N/A', 'N/A'])[0]} to {result.provenance.get('time_range', ['N/A', 'N/A'])[1]}" if result.provenance else 'N/A'
             ), unsafe_allow_html=True)
-    
-    # === 2. ARCHAEOLOGICAL LIKELIHOOD ===
+
+def _render_likelihood_section(labels):
+    """Render archaeological likelihood section"""
     with st.container():
         st.markdown(f"### {labels['likelihood_title']}")
         
@@ -657,8 +632,9 @@ def render_results(result, labels):
         and proper archaeological permits.</em></p>
         </div>
         """, unsafe_allow_html=True)
-    
-    # === 3. EVIDENCE & HEATMAP ===
+
+def _render_evidence_section(labels):
+    """Render evidence and heatmap section"""
     with st.container():
         st.markdown(f"### {labels['evidence_title']}")
         
@@ -678,8 +654,9 @@ def render_results(result, labels):
             # Placeholder for heatmap
             st.info("🗺️ Heatmap overlay would be rendered here with folium HeatMap layer")
             st.caption("Intensity = f(confidence, anomaly_score, density)")
-    
-    # === 4. RECOMMENDED AOI ===
+
+def _render_aoi_section(labels):
+    """Render recommended area of interest section"""
     with st.container():
         st.markdown(f"### {labels['aoi_title']}")
         
@@ -695,8 +672,9 @@ def render_results(result, labels):
         All fieldwork requires proper permits and expert supervision.</em></p>
         </div>
         """, unsafe_allow_html=True)
-    
-    # === EXPORTS ===
+
+def _render_export_buttons(result):
+    """Render export download buttons"""
     st.divider()
     
     col1, col2, col3 = st.columns(3)
@@ -745,6 +723,46 @@ def render_results(result, labels):
     
     with col3:
         st.button("📄 Generate Report", disabled=True, use_container_width=True)
+
+def render_results(result, labels):
+    if not result:
+        st.error("Analysis did not complete successfully")
+        return
+    
+    # === HANDLE LIVE_FAILED ===
+    if result.status == 'LIVE_FAILED':
+        _render_live_failed_status(result)
+        return  # No results to show for LIVE_FAILED
+    
+    # === HANDLE SUCCESS (DEMO_OK or LIVE_OK) ===
+    if not result.success:
+        st.error("Analysis did not complete successfully")
+        if result.errors:
+            with st.expander("Errors"):
+                for error in result.errors:
+                    st.error(error)
+        return
+    
+    st.header(labels['results_title'])
+    
+    # === LIVE PROOF PANEL (for LIVE_OK only) ===
+    if result.status == 'LIVE_OK' and result.provenance:
+        _render_live_ok_provenance(result)
+    
+    # === 1. SOURCES USED ===
+    _render_sources_section(result, labels)
+    
+    # === 2. ARCHAEOLOGICAL LIKELIHOOD ===
+    _render_likelihood_section(labels)
+    
+    # === 3. EVIDENCE & HEATMAP ===
+    _render_evidence_section(labels)
+    
+    # === 4. RECOMMENDED AOI ===
+    _render_aoi_section(labels)
+    
+    # === EXPORTS ===
+    _render_export_buttons(result)
 
 
 #===========================================
