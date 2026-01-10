@@ -121,9 +121,14 @@ class HybridDataService:
             logger.info(f"After deduplication: {len(combined)} unique sites")
         
         # Re-normalize priority based on adjusted confidence
-        combined['priority'] = combined['confidence'].apply(lambda c: 
-            'high' if c >= 80 else 'medium' if c >= 65 else 'low'
-        )
+        def get_priority(c):
+            if c >= 80:
+                return 'high'
+            elif c >= 65:
+                return 'medium'
+            else:
+                return 'low'
+        combined['priority'] = combined['confidence'].apply(get_priority)
         
         # Sort by confidence (descending)
         combined = combined.sort_values('confidence', ascending=False).reset_index(drop=True)

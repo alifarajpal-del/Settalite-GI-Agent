@@ -240,9 +240,14 @@ class BenchmarkDataLoader:
         df['confidence'] = (df['heritage_relevance'] * 100).clip(0, 100)
         
         # Generate priority
-        df['priority'] = df['confidence'].apply(lambda c: 
-            'high' if c >= 80 else 'medium' if c >= 65 else 'low'
-        )
+        def get_priority(c):
+            if c >= 80:
+                return 'high'
+            elif c >= 65:
+                return 'medium'
+            else:
+                return 'low'
+        df['priority'] = df['confidence'].apply(get_priority)
         
         # Generate synthetic areas
         df['area_m2'] = rng.uniform(500, 5000, num_samples)

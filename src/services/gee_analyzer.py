@@ -78,7 +78,7 @@ class GoogleEarthEngineAnalyzer:
                 self.available = True
                 self.logger.info(f"✓ Earth Engine already authenticated (project: {self.project_id})")
                 return
-            except:
+            except Exception:
                 pass
             
             # Try service account authentication (from secrets)

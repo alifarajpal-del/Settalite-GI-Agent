@@ -120,7 +120,7 @@ def test_geojson_validator():
             logger.info("✓ TEST 2 PASSED: GeoJSON validation successful")
             return True
         else:
-            logger.error(f"✗ TEST 2 FAILED: Validation or feature count mismatch")
+            logger.error("✗ TEST 2 FAILED: Validation or feature count mismatch")
             return False
     
     except Exception as e:
@@ -146,7 +146,7 @@ def test_synthetic_generator():
         df = quick_synthetic_test(num_sites=30)
         
         logger.info(f"Generated: {len(df)} sites")
-        logger.info(f"Patterns: mixed (grid + organic + random)")
+        logger.info("Patterns: mixed (grid + organic + random)")
         
         # Check schema
         required_cols = ['id', 'lat', 'lon', 'confidence', 'priority', 'area_m2', 'site_type']
@@ -158,7 +158,7 @@ def test_synthetic_generator():
             logger.info("✓ TEST 3 PASSED: Synthetic generation successful")
             return True
         else:
-            logger.error(f"✗ TEST 3 FAILED: Missing columns or no data")
+            logger.error("✗ TEST 3 FAILED: Missing columns or no data")
             return False
     
     except Exception as e:
@@ -196,7 +196,7 @@ def test_hybrid_data_service():
             logger.info("✓ TEST 4 PASSED: Hybrid data service successful")
             return True
         else:
-            logger.error(f"✗ TEST 4 FAILED: No source column")
+            logger.error("✗ TEST 4 FAILED: No source column")
             return False
     
     except Exception as e:
@@ -294,7 +294,7 @@ def test_end_to_end_integration():
             logger.info("✓ TEST 6 PASSED: End-to-end integration successful")
             return True
         else:
-            logger.error(f"✗ TEST 6 FAILED: Data lost or invalid export")
+            logger.error("✗ TEST 6 FAILED: Data lost or invalid export")
             return False
     
     except Exception as e:

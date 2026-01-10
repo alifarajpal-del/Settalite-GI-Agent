@@ -222,7 +222,7 @@ def render_landing(labels):
             st.rerun()
     
     # Centered content
-    col1, col2, col3 = st.columns([1, 2, 1])
+    _, col2, _ = st.columns([1, 2, 1])
     
     with col2:
         st.markdown(f"<h1 class='main-header'>🛰️ {labels['title']}</h1>", unsafe_allow_html=True)
@@ -315,10 +315,10 @@ def render_operations(labels):
     st.subheader(labels['map_title'])
     
     if FOLIUM_AVAILABLE:
-        render_map(target, labels)
+        render_map(target)
     else:
         st.warning("⚠️ Map visualization requires folium and streamlit-folium")
-        st.info(f"Install with: `pip install folium streamlit-folium`")
+        st.info("Install with: `pip install folium streamlit-folium`")
         st.code(f"Coordinates: {target['lat']:.6f}, {target['lon']:.6f}", language="text")
     
     st.divider()
@@ -376,7 +376,7 @@ def render_operations(labels):
         render_results(last_result, labels)
 
 
-def render_map(target, labels):
+def render_map(target):
     """Render interactive map with target marker and scan radius."""
     lat, lon = target['lat'], target['lon']
     
@@ -480,7 +480,7 @@ def run_analysis(target, radius, months_back, data_source, model_mode, labels):
         # Get pipeline service (cached in session state)
         pipeline = get_pipeline_service()
         if not pipeline:
-            raise Exception("Pipeline service initialization failed")
+            raise RuntimeError("Pipeline service initialization failed")
         
         # Run pipeline
         result = pipeline.run(request)
