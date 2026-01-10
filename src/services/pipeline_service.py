@@ -377,6 +377,9 @@ class PipelineService:
                 bands_data = band_result.bands
                 self.logger.info(f"✓ Downloaded real imagery: {bands_data.keys()}")
                 
+                # Get timestamps from first available band
+                band_timestamps = next(iter(bands_data.values())).timestamps if bands_data else []
+                
                 # Add data source to manifest (PROMPT 2)
                 manifest.add_data_source(DataSource(
                     provider='sentinelhub',
@@ -385,7 +388,7 @@ class PipelineService:
                     timestamps=[s['datetime'].isoformat() for s in scenes[:5]],
                     api_endpoints=['https://services.sentinel-hub.com/api/v1/process'],
                     total_scenes=len(scenes),
-                    processed_scenes=len(band_result.timestamps)
+                    processed_scenes=len(band_timestamps)
                 ))
                 
                 result.status = 'LIVE_OK'
@@ -442,14 +445,14 @@ class PipelineService:
                     name='NDVI',
                     formula='(NIR - RED) / (NIR + RED)',
                     bands_used=['B08', 'B04'],
-                    temporal_coverage={'computed_scenes': len(band_result.timestamps)},
+                    temporal_coverage={'computed_scenes': len(band_timestamps)},
                     computed_from_real_data=True
                 ))
                 manifest.add_indicator(ComputedIndicator(
                     name='NDWI',
                     formula='(GREEN - NIR) / (GREEN + NIR)',
                     bands_used=['B03', 'B08'],
-                    temporal_coverage={'computed_scenes': len(band_result.timestamps)},
+                    temporal_coverage={'computed_scenes': len(band_timestamps)},
                     computed_from_real_data=True
                 ))
                 
