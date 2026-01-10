@@ -77,7 +77,7 @@ def test_integration():
         # Try with seed if supported
         try:
             mock = MockDataService()
-        except Exception:
+        except ImportError as e:
             mock = MockDataService()
         
         print("✅ MockDataService instantiated")
