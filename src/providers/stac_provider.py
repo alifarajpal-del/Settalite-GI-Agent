@@ -192,28 +192,42 @@ class StacProvider:
     def fetch_band_stack(
         self,
         bbox: Tuple[float, float, float, float],
-        start_date: datetime,
-        end_date: datetime,
+        time_range: Tuple[datetime, datetime] = None,
+        start_date: datetime = None,
+        end_date: datetime = None,
         bands: List[str] = None,
         max_cloud_cover: float = 80.0,
         max_scenes: int = 5,
-        target_resolution: int = 100
+        resolution: int = 100,
+        target_resolution: int = None
     ) -> ImageryResult:
         """
         Download band data from Sentinel-2 COG assets.
         
         Args:
             bbox: (min_lon, min_lat, max_lon, max_lat)
-            start_date: Start of time range
-            end_date: End of time range
+            time_range: Tuple of (start_date, end_date) - preferred parameter
+            start_date: Start of time range (alternative to time_range)
+            end_date: End of time range (alternative to time_range)
             bands: List of band names (e.g., ["B02", "B03", "B04", "B08"])
             max_cloud_cover: Maximum cloud cover percentage
             max_scenes: Maximum number of scenes to download
+            resolution: Target resolution in meters (alias for target_resolution)
             target_resolution: Target resolution in meters
             
         Returns:
             ImageryResult with downloaded bands and computed indices
         """
+        # Handle time_range parameter (for compatibility with SentinelHubProvider)
+        if time_range is not None:
+            start_date, end_date = time_range
+        elif start_date is None or end_date is None:
+            raise ValueError("Must provide either time_range or both start_date and end_date")
+        
+        # Handle resolution parameter
+        if target_resolution is None:
+            target_resolution = resolution
+        
         if bands is None:
             bands = ["B02", "B03", "B04", "B08"]  # Blue, Green, Red, NIR
         

@@ -329,6 +329,7 @@ class PipelineService:
                 # Try STAC provider first (no credentials required)
                 provider = None
                 provider_name = None
+                provider_error = None
                 
                 try:
                     from src.providers.stac_provider import StacProvider
@@ -338,10 +339,12 @@ class PipelineService:
                         provider_name = "STAC"
                         self.logger.info("✓ STAC provider ready (Earth Search)")
                     else:
-                        self.logger.warning(f"STAC provider not available: {provider._unavailable_reason}")
+                        provider_error = provider._unavailable_reason
+                        self.logger.warning(f"STAC provider not available: {provider_error}")
                         provider = None
-                except ImportError as e:
-                    self.logger.warning(f"Cannot import StacProvider: {e}")
+                except Exception as e:
+                    provider_error = f"{type(e).__name__}: {str(e)}"
+                    self.logger.warning(f"Cannot initialize StacProvider: {provider_error}")
                     provider = None
                 
                 # Fallback to SentinelHub if STAC not available
@@ -351,9 +354,16 @@ class PipelineService:
                         self.logger.info("Falling back to SentinelHub provider...")
                         provider = SentinelHubProvider(self.config, self.logger)
                         provider_name = "SentinelHub"
-                    except ImportError as e:
+                    except Exception as e:
                         result.status = 'LIVE_FAILED'
-                        result.failure_reason = f'IMPORT_ERROR: Cannot import any provider: {e}\n\nInstall with: pip install pystac-client rasterio'
+                        result.failure_reason = f'PROVIDER_INIT_FAILED: No providers available.\n\nSTAC Error: {provider_error}\nSentinelHub Error: {type(e).__name__}: {str(e)}\n\nInstall dependencies: pip install pystac-client rasterio sentinelhub'
+                        result.data_quality = {
+                            'total_scenes': 0,
+                            'processed_scenes': 0,
+                            'provider': 'NONE',
+                            'status': 'FAILED',
+                            'failure_reason': result.failure_reason
+                        }
                         self.logger.error(result.failure_reason)
                         result.errors.append(result.failure_reason)
                         manifest.set_failure(result.failure_reason)
@@ -404,8 +414,15 @@ class PipelineService:
                 except Exception as search_error:
                     result.status = 'LIVE_FAILED'
                     result.success = False
-                    result.failure_reason = f"Scene search failed: {str(search_error)}"
-                    result.data_quality = {'total_scenes': 0, 'processed_scenes': 0}
+                    error_detail = f"{type(search_error).__name__}: {str(search_error)}"
+                    result.failure_reason = f"Scene search failed: {error_detail}"
+                    result.data_quality = {
+                        'total_scenes': 0,
+                        'processed_scenes': 0,
+                        'provider': provider_name,
+                        'status': 'FAILED',
+                        'failure_reason': error_detail
+                    }
                     result.dataframe = None
                     result.stats = {'num_sites': 0, 'likelihood': None}
                     self.logger.error(f"❌ Scene search failed: {search_error}", exc_info=True)
@@ -455,7 +472,8 @@ class PipelineService:
                     result.data_quality = {
                         'total_scenes': 0,
                         'processed_scenes': 0,
-                        'providers': 'N/A',
+                        'provider': provider_name,
+                        'status': 'NO_DATA',
                         'date_range': f"{request.start_date} to {request.end_date}"
                     }
                     
@@ -468,18 +486,41 @@ class PipelineService:
                 self.logger.info(f"Found {len(scenes)} scenes")
                 
                 # Download real bands (PROMPT 3)
-                band_result = sh_provider.fetch_band_stack(
-                    bbox=bbox,
-                    time_range=(start_dt, end_dt),
-                    bands=['B03', 'B04', 'B08'],  # Green, Red, NIR for NDVI/NDWI
-                    resolution=10  # 10m resolution
-                )
+                try:
+                    band_result = sh_provider.fetch_band_stack(
+                        bbox=bbox,
+                        time_range=(start_dt, end_dt),
+                        bands=['B03', 'B04', 'B08'],  # Green, Red, NIR for NDVI/NDWI
+                        resolution=10  # 10m resolution
+                    )
+                except Exception as band_error:
+                    result.status = 'LIVE_FAILED'
+                    error_detail = f"{type(band_error).__name__}: {str(band_error)}"
+                    result.failure_reason = f'BAND_DOWNLOAD_EXCEPTION: {error_detail}'
+                    result.data_quality = {
+                        'total_scenes': len(scenes),
+                        'processed_scenes': 0,
+                        'provider': provider_name,
+                        'status': 'FAILED',
+                        'failure_reason': error_detail
+                    }
+                    self.logger.error(f"❌ Band download exception: {band_error}", exc_info=True)
+                    result.errors.append(result.failure_reason)
+                    manifest.set_failure(result.failure_reason)
+                    return result
                 
                 if band_result.status != 'SUCCESS':
                     result.status = 'LIVE_FAILED'
                     # Prefer failure_reason from provider when available
                     failure_msg = getattr(band_result, 'failure_reason', None) or getattr(band_result, 'error', None) or 'Unknown error'
                     result.failure_reason = f'BAND_DOWNLOAD_FAILED: {failure_msg}'
+                    result.data_quality = {
+                        'total_scenes': len(scenes),
+                        'processed_scenes': 0,
+                        'provider': provider_name,
+                        'status': 'FAILED',
+                        'failure_reason': failure_msg
+                    }
                     self.logger.error(result.failure_reason)
                     result.errors.append(result.failure_reason)
                     manifest.set_failure(result.failure_reason)

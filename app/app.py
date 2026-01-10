@@ -698,25 +698,47 @@ def _render_sources_section(result, labels):
             </div>
             """, unsafe_allow_html=True)
         else:
+            # Get data quality info
+            data_quality = getattr(result, 'data_quality', {})
+            provider_name = data_quality.get('provider', 'N/A')
+            status = data_quality.get('status', 'UNKNOWN')
+            failure_reason = data_quality.get('failure_reason', None)
+            
             # SUCCESS - show real sources (if available in metadata)
-            scenes_count = result.provenance.get('scenes_count', 0) if result.provenance else 0
+            scenes_count = result.provenance.get('scenes_count', 0) if result.provenance else data_quality.get('total_scenes', 0)
             
-            # Additional safeguard: if scenes_count is 0, show warning
-            if scenes_count == 0:
-                st.warning("⚠️ No satellite imagery was processed for this analysis.")
-            
-            st.markdown("""
-            <div class='result-section'>
-            <strong>Satellite Images:</strong> {scenes_count} scenes<br>
-            <strong>Providers:</strong> {providers}<br>
-            <strong>Time Range:</strong> {time_range}<br>
-            <strong>References:</strong> Multi-temporal analysis
-            </div>
-            """.format(
-                scenes_count=scenes_count,
-                providers=result.provenance.get('provider', 'N/A') if result.provenance else 'N/A',
-                time_range=f"{result.provenance.get('time_range', ['N/A', 'N/A'])[0]} to {result.provenance.get('time_range', ['N/A', 'N/A'])[1]}" if result.provenance else 'N/A'
-            ), unsafe_allow_html=True)
+            # Check if this is a failure status
+            if status == 'FAILED' and failure_reason:
+                st.error(f"❌ **Provider: {provider_name} - Status: FAILED**")
+                st.markdown(f"""
+                <div class='result-section' style='background-color: #ffebee; border-left: 4px solid #f44336;'>
+                <strong>🚨 Error Details:</strong><br>
+                <pre style='white-space: pre-wrap; font-size: 0.85em;'>{failure_reason}</pre>
+                <br>
+                <strong>Troubleshooting:</strong><br>
+                • Check internet connectivity<br>
+                • Verify dependencies are installed (pystac-client, rasterio)<br>
+                • Try different location or time range<br>
+                • Check Streamlit Cloud logs for detailed error messages
+                </div>
+                """, unsafe_allow_html=True)
+            elif scenes_count == 0:
+                st.warning(f"⚠️ No satellite imagery was processed. Provider: {provider_name}")
+            else:
+                st.markdown("""
+                <div class='result-section'>
+                <strong>Satellite Images:</strong> {scenes_count} scenes<br>
+                <strong>Provider:</strong> {provider}<br>
+                <strong>Status:</strong> {status}<br>
+                <strong>Time Range:</strong> {time_range}<br>
+                <strong>References:</strong> Multi-temporal analysis
+                </div>
+                """.format(
+                    scenes_count=scenes_count,
+                    provider=provider_name,
+                    status=status if status != 'UNKNOWN' else 'SUCCESS',
+                    time_range=f"{result.provenance.get('time_range', ['N/A', 'N/A'])[0]} to {result.provenance.get('time_range', ['N/A', 'N/A'])[1]}" if result.provenance else 'N/A'
+                ), unsafe_allow_html=True)
 
 def _render_likelihood_section(labels):
     """Render archaeological likelihood section"""
@@ -908,8 +930,54 @@ def render_results(result, labels):
 #===========================================
 # MAIN ROUTER
 #===========================================
+
+def check_dependencies():
+    """Check and log dependency versions at startup."""
+    import sys
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    logger.info("=" * 60)
+    logger.info("🔍 DEPENDENCY SELF-CHECK")
+    logger.info("=" * 60)
+    logger.info(f"Python Version: {sys.version}")
+    
+    # Check critical dependencies
+    dependencies = {
+        'pystac_client': 'pystac-client',
+        'rasterio': 'rasterio',
+        'shapely': 'shapely',
+        'numpy': 'numpy',
+        'requests': 'requests'
+    }
+    
+    missing = []
+    for module, package_name in dependencies.items():
+        try:
+            mod = __import__(module)
+            version = getattr(mod, '__version__', 'unknown')
+            logger.info(f"✓ {package_name}: {version}")
+        except ImportError:
+            logger.error(f"✗ {package_name}: NOT INSTALLED")
+            missing.append(package_name)
+    
+    logger.info("=" * 60)
+    
+    # Show warnings in UI if critical dependencies are missing
+    if missing:
+        st.error(f"⚠️ Missing dependencies: {', '.join(missing)}")
+        st.error("Live satellite imagery reading disabled. Please install: pip install " + " ".join(missing))
+        return False
+    
+    return True
+
+
 def main():
     """Main application router."""
+    
+    # Run dependency check on first load
+    if 'dependencies_checked' not in st.session_state:
+        st.session_state.dependencies_checked = check_dependencies()
     
     # Ensure session state is initialized
     if 'step' not in st.session_state:
