@@ -217,30 +217,36 @@ def test_full_pipeline():
     except Exception as e:
         return False, f"خطأ: {str(e)}"
 
-def _handle_library_check(step, status):
-    """Handle library check step"""
-    available, missing = check_libraries()
+def _update_library_check_status(step, status, available, missing):
+    """Update status and display results for library check"""
     if missing:
         status.update(label=f"⚠️ {step['name']} - مكتمل مع تحذيرات", state="complete")
         st.warning(f"مكتبات مفقودة: {', '.join(missing)}")
         st.success(f"مكتبات متوفرة: {', '.join(available)}")
-        return True
     else:
         status.update(label=f"✅ {step['name']} - ناجح", state="complete")
         st.success(f"جميع المكتبات متوفرة ({len(available)} مكتبة)")
-        return True
+
+def _update_service_files_status(step, status, existing, missing):
+    """Update status and display results for service files check"""
+    if missing:
+        status.update(label=f"❌ {step['name']} - فشل", state="error")
+        st.error(f"ملفات مفقودة: {', '.join(missing)}")
+    else:
+        status.update(label=f"✅ {step['name']} - ناجح", state="complete")
+        st.success(f"جميع ملفات الخدمات موجودة ({len(existing)} ملف)")
+
+def _handle_library_check(step, status):
+    """Handle library check step"""
+    available, missing = check_libraries()
+    _update_library_check_status(step, status, available, missing)
+    return not bool(missing)
 
 def _handle_service_files_check(step, status):
     """Handle service files check step"""
     existing, missing = check_service_files()
-    if missing:
-        status.update(label=f"❌ {step['name']} - فشل", state="error")
-        st.error(f"ملفات مفقودة: {', '.join(missing)}")
-        return False
-    else:
-        status.update(label=f"✅ {step['name']} - ناجح", state="complete")
-        st.success(f"جميع ملفات الخدمات موجودة ({len(existing)} ملف)")
-        return True
+    _update_service_files_status(step, status, existing, missing)
+    return not bool(missing)
 
 def _handle_test_step(step, status, test_func):
     """Handle generic test step (processing, detection, coordinate, pipeline)"""
