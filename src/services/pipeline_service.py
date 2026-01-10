@@ -105,18 +105,18 @@ class PipelineResult:
     """
     Standardized output from pipeline execution.
     
-    PROMPT 2: No-Fake-Live Contract with Provenance Manifest
-    - status: 'DEMO_OK' | 'LIVE_OK' | 'LIVE_FAILED'
+    NO FAKE RESULTS POLICY:
+    - status: 'SUCCESS' | 'NO_DATA' | 'LIVE_FAILED' | 'PARTIAL' | 'DEMO_MODE'
     - manifest: Complete provenance tracking (REQUIRED)
-    - data_quality: Quality metrics
-    - If LIVE_FAILED: no likelihood, no heatmap, only failure_reason
-    - If LIVE_OK: must have real data in manifest
+    - data_quality: Quality metrics with real scene counts
+    - If NO_DATA or LIVE_FAILED: NO likelihood, NO heatmap, only failure_reason
+    - If SUCCESS: must have real data in manifest with processed_scenes > 0
     
     Attributes:
         success: Whether pipeline completed successfully
-        status: Execution status following No-Fake-Live contract
-        manifest: RunManifest with complete provenance (PROMPT 2)
-        dataframe: GeoDataFrame with detected sites (None if LIVE_FAILED)
+        status: Execution status ('SUCCESS' | 'NO_DATA' | 'LIVE_FAILED' | 'PARTIAL' | 'DEMO_MODE')
+        manifest: RunManifest with complete provenance tracking
+        dataframe: GeoDataFrame with detected sites (None if NO_DATA/LIVE_FAILED)
         stats: Dictionary with statistics (num_sites, processing_time, etc.)
         export_paths: Dictionary mapping format to file path
         errors: List of error messages encountered
@@ -125,11 +125,11 @@ class PipelineResult:
         step_completed: Last step successfully completed
         data_quality: Quality metrics (scene count, cloud cover, etc.)
         provenance: Simplified provenance for UI (legacy, use manifest instead)
-        failure_reason: Reason for LIVE_FAILED (if applicable)
+        failure_reason: Detailed reason for NO_DATA/LIVE_FAILED with actionable info
     """
     success: bool
-    status: str  # 'DEMO_OK' | 'LIVE_OK' | 'LIVE_FAILED'
-    manifest: RunManifest  # PROMPT 2: Complete provenance tracking
+    status: str  # 'SUCCESS' | 'NO_DATA' | 'LIVE_FAILED' | 'PARTIAL' | 'DEMO_MODE'
+    manifest: RunManifest  # Complete provenance tracking
     dataframe: Optional[Any] = None  # GeoDataFrame (avoid import at module level)
     stats: Dict[str, Any] = field(default_factory=dict)
     export_paths: Dict[str, str] = field(default_factory=dict)
@@ -137,15 +137,17 @@ class PipelineResult:
     warnings: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
     step_completed: Optional[str] = None
-    data_quality: Dict[str, Any] = field(default_factory=dict)  # PROMPT 2
+    data_quality: Dict[str, Any] = field(default_factory=dict)
     provenance: Optional[Dict[str, Any]] = None  # Legacy (use manifest)
-    failure_reason: Optional[str] = None  # For LIVE_FAILED
+    failure_reason: Optional[str] = None  # For NO_DATA/LIVE_FAILED
     
     def can_show_likelihood(self) -> bool:
         """
-        PROMPT 2: Check if archaeological likelihood can be shown.
-        Only true if manifest indicates real data processing was successful.
+        NO FAKE RESULTS: Check if archaeological likelihood can be shown.
+        Only true if status is SUCCESS and manifest has real processed data.
         """
+        if self.status not in ['SUCCESS', 'DEMO_MODE']:
+            return False
         return self.manifest.can_compute_likelihood()
 
 
@@ -306,9 +308,9 @@ class PipelineService:
                 )
                 bands_data = mock_data['bands']
                 result.step_completed = 'fetch'
-                result.status = 'DEMO_OK'  # Clear demo labeling
+                result.status = 'DEMO_MODE'  # Clear demo labeling
                 
-                # Add mock data source to manifest (PROMPT 2)
+                # Add mock data source to manifest
                 from src.provenance.run_manifest import DataSource
                 manifest.add_data_source(DataSource(
                     provider='mock',
@@ -347,12 +349,37 @@ class PipelineService:
                 # Search for scenes
                 scenes = sh_provider.search_scenes(bbox, start_dt, end_dt, max_cloud_cover=20.0)
                 
-                if not scenes:
-                    result.status = 'LIVE_FAILED'
-                    result.failure_reason = 'NO_SCENES_FOUND: No satellite imagery available for the specified AOI and time range'
-                    self.logger.error(result.failure_reason)
+                # NO FAKE RESULTS: If no scenes, return NO_DATA immediately
+                if not scenes or len(scenes) == 0:
+                    result.status = 'NO_DATA'
+                    result.success = False
+                    result.failure_reason = (
+                        f"NO SATELLITE DATA AVAILABLE\n\n"
+                        f"📍 AOI: {bbox}\n"
+                        f"📅 Time Range: {request.start_date} to {request.end_date}\n"
+                        f"☁️ Max Cloud Cover: 20%\n\n"
+                        f"Next Steps:\n"
+                        f"1. Expand the time range (try 6-12 months)\n"
+                        f"2. Increase cloud cover tolerance\n"
+                        f"3. Verify the AOI is over land (not ocean)\n"
+                        f"4. Check if the location is covered by Sentinel-2"
+                    )
+                    self.logger.error(f"NO_DATA: {result.failure_reason}")
                     result.errors.append(result.failure_reason)
                     manifest.set_failure(result.failure_reason)
+                    
+                    # Set data quality to show zero scenes
+                    result.data_quality = {
+                        'total_scenes': 0,
+                        'processed_scenes': 0,
+                        'providers': 'N/A',
+                        'date_range': f"{request.start_date} to {request.end_date}"
+                    }
+                    
+                    # NO likelihood, NO evidence, NO aoi when no data
+                    result.dataframe = None
+                    result.stats = {'num_sites': 0, 'likelihood': None}
+                    
                     return result
                 
                 self.logger.info(f"Found {len(scenes)} scenes")
@@ -393,7 +420,7 @@ class PipelineService:
                     processed_scenes=len(band_timestamps)
                 ))
                 
-                result.status = 'LIVE_OK'
+                result.status = 'SUCCESS'
                 result.step_completed = 'fetch'
             
             else:

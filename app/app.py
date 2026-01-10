@@ -519,6 +519,28 @@ def run_analysis(target, radius, months_back, data_source, model_mode, labels):
             st.code(str(e), language="text")
 
 
+def _render_no_data_status(result):
+    """Render NO_DATA status with actionable guidance"""
+    st.error("📍 No Satellite Data Available")
+    
+    # Parse failure reason for structured display
+    failure_text = result.failure_reason or "No satellite imagery found for the specified parameters."
+    
+    st.markdown(f"""
+    <div class='result-section' style='background-color: #fff3cd; border-left: 4px solid #ffc107;'>
+    <h4>No satellite imagery available for analysis</h4>
+    <pre style='white-space: pre-wrap; font-family: monospace; font-size: 0.9em;'>{failure_text}</pre>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Show data quality metrics (should show zeros)
+    if result.data_quality:
+        with st.expander("📊 Data Search Details"):
+            st.json(result.data_quality)
+    
+    st.info("💡 **Tip:** Try expanding your time range to 6-12 months or adjusting the location.")
+
+
 def _render_live_failed_status(result):
     """Render LIVE_FAILED status with setup instructions"""
     st.error("🔴 Live Analysis Failed")
@@ -555,7 +577,7 @@ def _render_live_failed_status(result):
     """)
 
 def _render_live_ok_provenance(result):
-    """Render LIVE_OK provenance panel"""
+    """Render SUCCESS provenance panel with real data proof"""
     st.markdown("### 🛰️ Live Data Provenance")
     prov = result.provenance
     st.markdown(f"""
@@ -575,7 +597,7 @@ def _render_sources_section(result, labels):
     with st.container():
         st.markdown(f"### {labels['sources_title']}")
         
-        if result.status == 'DEMO_OK':
+        if result.status == 'DEMO_MODE':
             st.markdown("""
             <div class='result-section'>
             <strong>⚠️ Demo Mode:</strong> Using simulated data<br>
@@ -586,7 +608,7 @@ def _render_sources_section(result, labels):
             </div>
             """, unsafe_allow_html=True)
         else:
-            # LIVE_OK - show real sources (if available in metadata)
+            # SUCCESS - show real sources (if available in metadata)
             st.markdown("""
             <div class='result-section'>
             <strong>Satellite Images:</strong> {scenes_count} scenes<br>
@@ -729,12 +751,17 @@ def render_results(result, labels):
         st.error("Analysis did not complete successfully")
         return
     
+    # === HANDLE NO_DATA (NO FAKE RESULTS POLICY) ===
+    if result.status == 'NO_DATA':
+        _render_no_data_status(result)
+        return  # NO likelihood, NO evidence, NO aoi when no data
+    
     # === HANDLE LIVE_FAILED ===
     if result.status == 'LIVE_FAILED':
         _render_live_failed_status(result)
         return  # No results to show for LIVE_FAILED
     
-    # === HANDLE SUCCESS (DEMO_OK or LIVE_OK) ===
+    # === HANDLE SUCCESS (DEMO_MODE or SUCCESS) ===
     if not result.success:
         st.error("Analysis did not complete successfully")
         if result.errors:
@@ -745,21 +772,25 @@ def render_results(result, labels):
     
     st.header(labels['results_title'])
     
-    # === LIVE PROOF PANEL (for LIVE_OK only) ===
-    if result.status == 'LIVE_OK' and result.provenance:
+    # === LIVE PROOF PANEL (for SUCCESS only) ===
+    if result.status == 'SUCCESS' and result.provenance:
         _render_live_ok_provenance(result)
     
     # === 1. SOURCES USED ===
     _render_sources_section(result, labels)
     
-    # === 2. ARCHAEOLOGICAL LIKELIHOOD ===
-    _render_likelihood_section(labels)
-    
-    # === 3. EVIDENCE & HEATMAP ===
-    _render_evidence_section(labels)
-    
-    # === 4. RECOMMENDED AOI ===
-    _render_aoi_section(labels)
+    # === NO FAKE RESULTS: Only show likelihood/evidence/aoi if can_show_likelihood ===
+    if result.can_show_likelihood():
+        # === 2. ARCHAEOLOGICAL LIKELIHOOD ===
+        _render_likelihood_section(labels)
+        
+        # === 3. EVIDENCE & HEATMAP ===
+        _render_evidence_section(labels)
+        
+        # === 4. RECOMMENDED AOI ===
+        _render_aoi_section(labels)
+    else:
+        st.warning("⚠️ Archaeological likelihood cannot be computed without real satellite data.")
     
     # === EXPORTS ===
     _render_export_buttons(result)
