@@ -44,6 +44,9 @@ class AnomalyDetectionService:
         # تحضير البيانات
         X = self._prepare_features(indices, features)
         
+        # Store original shape for reconstruction
+        original_shape = X.shape[:2]  # (height, width)
+        
         # تطبيع البيانات
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(X.reshape(-1, X.shape[-1]))
@@ -67,14 +70,14 @@ class AnomalyDetectionService:
         # التنبؤ
         predictions = model.fit_predict(X_scaled)
         
-        # تحويل إلى خريطة شذوذ
-        anomaly_map = predictions.reshape(list(indices.values())[0].shape)
+        # تحويل إلى خريطة شذوذ (use original shape)
+        anomaly_map = predictions.reshape(original_shape)
         anomaly_map = (anomaly_map == -1).astype(float)
         
         # حساب درجة الشذوذ
         if hasattr(model, 'score_samples'):
             anomaly_scores = -model.score_samples(X_scaled)
-            anomaly_surface = anomaly_scores.reshape(list(indices.values())[0].shape)
+            anomaly_surface = anomaly_scores.reshape(original_shape)
             anomaly_surface = (anomaly_surface - anomaly_surface.min()) / (anomaly_surface.max() - anomaly_surface.min())
         else:
             anomaly_surface = anomaly_map
@@ -105,7 +108,15 @@ class AnomalyDetectionService:
         feature_arrays = []
         for feature in features:
             if feature in indices:
-                feature_arrays.append(indices[feature])
+                arr = indices[feature]
+                
+                # Validate shape: must be 2D (height, width)
+                if arr.ndim != 2:
+                    self.logger.error(f"Feature {feature} has invalid shape: {arr.shape} (expected 2D)")
+                    raise ValueError(f"Feature {feature} must be 2D array, got shape {arr.shape}")
+                
+                self.logger.debug(f"Feature {feature} shape: {arr.shape}")
+                feature_arrays.append(arr)
         
         if not feature_arrays:
             raise ValueError("لا توجد مميزات متاحة")
@@ -113,10 +124,16 @@ class AnomalyDetectionService:
         # تكديس المميزات
         X = np.stack(feature_arrays, axis=-1)
         
-        # استبدال NaN بالمتوسط
+        # Store shape info for logging
+        self.logger.debug(f"Feature stack shape: {X.shape} (height, width, features)")
+        
+        # استبدال NaN بالمتوسط - FIXED: handle 2D shape correctly
         for i in range(X.shape[-1]):
+            # Extract channel properly for 2D data: X[:, :, i]
             channel = X[:, :, i]
             channel_mean = np.nanmean(channel)
-            channel[np.isnan(channel)] = channel_mean
+            if np.isnan(channel_mean):
+                channel_mean = 0.0
+            X[:, :, i] = np.where(np.isnan(channel), channel_mean, channel)
         
         return X

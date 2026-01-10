@@ -459,6 +459,15 @@ class PipelineService:
                     'B08': b08_data         # 2D array (height, width)
                 }
                 
+                # Validate all indices are 2D before proceeding
+                for idx_name, idx_data in indices.items():
+                    if idx_data.ndim != 2:
+                        error_msg = f"Index {idx_name} has invalid shape {idx_data.shape}, expected 2D"
+                        self.logger.error(error_msg)
+                        result.errors.append(error_msg)
+                        return result
+                    self.logger.debug(f"Index {idx_name} shape: {idx_data.shape}")
+                
                 # Add indicators to manifest (PROMPT 2)
                 from src.provenance.run_manifest import ComputedIndicator
                 manifest.add_indicator(ComputedIndicator(
