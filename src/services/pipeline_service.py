@@ -323,46 +323,66 @@ class PipelineService:
                 ))
                 
             elif request.mode == 'live':
-                # PROMPT 3: Live mode with real Sentinel Hub download
-                self.logger.info("Using Live satellite providers (Sentinel Hub + GEE)")
+                # Live mode with STAC provider (default) or Sentinel Hub (fallback)
+                self.logger.info("Using Live satellite providers (STAC + Sentinel Hub fallback)")
                 
-                # Initialize Sentinel Hub Provider (PROMPT 3)
+                # Try STAC provider first (no credentials required)
+                provider = None
+                provider_name = None
+                
                 try:
-                    from src.providers import SentinelHubProvider
+                    from src.providers.stac_provider import StacProvider
+                    self.logger.info("Initializing STAC provider...")
+                    provider = StacProvider(self.config, self.logger)
+                    if provider.available:
+                        provider_name = "STAC"
+                        self.logger.info("✓ STAC provider ready (Earth Search)")
+                    else:
+                        self.logger.warning(f"STAC provider not available: {provider._unavailable_reason}")
+                        provider = None
                 except ImportError as e:
-                    result.status = 'LIVE_FAILED'
-                    result.failure_reason = f'IMPORT_ERROR: Cannot import SentinelHubProvider: {e}\n\nInstall with: pip install sentinelhub'
-                    self.logger.error(result.failure_reason)
-                    result.errors.append(result.failure_reason)
-                    manifest.set_failure(result.failure_reason)
-                    return result
+                    self.logger.warning(f"Cannot import StacProvider: {e}")
+                    provider = None
+                
+                # Fallback to SentinelHub if STAC not available
+                if provider is None:
+                    try:
+                        from src.providers import SentinelHubProvider
+                        self.logger.info("Falling back to SentinelHub provider...")
+                        provider = SentinelHubProvider(self.config, self.logger)
+                        provider_name = "SentinelHub"
+                    except ImportError as e:
+                        result.status = 'LIVE_FAILED'
+                        result.failure_reason = f'IMPORT_ERROR: Cannot import any provider: {e}\n\nInstall with: pip install pystac-client rasterio'
+                        self.logger.error(result.failure_reason)
+                        result.errors.append(result.failure_reason)
+                        manifest.set_failure(result.failure_reason)
+                        return result
                 
                 from src.provenance.run_manifest import DataSource, ProcessingStep
                 
-                self.logger.info("Initializing SentinelHub provider...")
-                sh_provider = SentinelHubProvider(self.config, self.logger)
+                sh_provider = provider  # Keep variable name for compatibility
                 
                 if not sh_provider.available:
-                    # Sentinel Hub not available - LIVE_FAILED
+                    # Provider not available - LIVE_FAILED
                     result.status = 'LIVE_FAILED'
                     
                     # Get detailed reason from provider
                     if not hasattr(sh_provider, '_unavailable_reason'):
-                        reason_detail = "Provider initialization failed. Possible causes:\n"
-                        reason_detail += "1. sentinelhub library not installed: pip install sentinelhub\n"
-                        reason_detail += "2. Missing credentials (SENTINELHUB_CLIENT_ID and SENTINELHUB_CLIENT_SECRET)\n"
-                        reason_detail += "3. Invalid credentials\n"
-                        reason_detail += "4. Network/authentication error"
+                        reason_detail = f"{provider_name} provider initialization failed. Possible causes:\n"
+                        reason_detail += "1. Required libraries not installed: pip install pystac-client rasterio sentinelhub\n"
+                        reason_detail += "2. Missing credentials (for SentinelHub: SENTINELHUB_CLIENT_ID and SENTINELHUB_CLIENT_SECRET)\n"
+                        reason_detail += "3. Network/authentication error"
                     else:
                         reason_detail = sh_provider._unavailable_reason
                     
-                    result.failure_reason = f'SENTINELHUB_UNAVAILABLE: {reason_detail}'
+                    result.failure_reason = f'{provider_name.upper()}_UNAVAILABLE: {reason_detail}'
                     self.logger.error(f"❌ {result.failure_reason}")
                     result.errors.append(result.failure_reason)
                     manifest.set_failure(result.failure_reason)
                     return result
                 
-                self.logger.info("✓ SentinelHub provider ready")
+                self.logger.info(f"✓ {provider_name} provider ready")
                 
                 # Convert AOI to bbox
                 bbox = request.aoi_geometry.bounds  # (minx, miny, maxx, maxy)

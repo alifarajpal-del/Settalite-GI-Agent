@@ -29,6 +29,10 @@ earthengine-api>=0.1.350
 # eoreader>=0.28.0
 # sentinelsat>=1.1.0
 
+# STAC Provider Dependencies (Direct COG Access)
+pystac-client>=0.7.0
+requests>=2.31.0
+
 # أدوات إضافية
 joblib>=1.3.0
 
