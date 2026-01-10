@@ -20,7 +20,7 @@ Write-Host ""
 
 Write-Host "Option 2: Show Errors Only in Problems Panel:" -ForegroundColor White
 Write-Host "   - Press Ctrl+Shift+M to open Problems" -ForegroundColor Gray
-Write-Host "   - Click filter icon" -ForegroundColor Gray 
+Write-Host "   - Click filter icon" -ForegroundColor Gray
 Write-Host "   - Select 'Show Errors Only'" -ForegroundColor Gray
 Write-Host ""
 

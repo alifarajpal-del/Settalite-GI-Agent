@@ -517,7 +517,6 @@ class PipelineService:
         # STEP 3: DETECT (Anomaly Detection)
         # ============================================================
         anomaly_map = None
-        anomaly_surface = None
         try:
             self.logger.info("STEP 3/5: Detecting anomalies...")
             
@@ -686,8 +685,6 @@ class PipelineService:
                 self.logger.warning(error_msg)
                 result.warnings.append(error_msg)
         else:
-            # Classic mode or no data
-            result.stats['model_mode'] = request.model_mode
             # Classic mode or no data
             result.stats['model_mode'] = request.model_mode
             result.stats['ensemble_available'] = ML_MODELS_AVAILABLE

@@ -9,6 +9,30 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
+def _validate_aoi_geometry(aoi):
+    """Validate AOI geometry structure and return description"""
+    assert aoi is not None, "AOI should not be None"
+    
+    # Check if it's shapely Polygon or has expected attributes
+    if hasattr(aoi, 'is_valid'):
+        assert aoi.is_valid, "AOI must be valid geometry"
+        return f"type: {type(aoi).__name__}"
+    elif hasattr(aoi, 'geom_type'):
+        return f"geom_type: {aoi.geom_type}"
+    else:
+        return None  # Unexpected format
+
+def _validate_detections_dataframe(detections, expected_count):
+    """Validate detections DataFrame structure"""
+    assert hasattr(detections, 'columns'), "Detections must be DataFrame-like"
+    assert len(detections) == expected_count, f"Expected {expected_count} sites, got {len(detections)}"
+    
+    # Check for required fields (handle Arabic column names)
+    has_lat = any('lat' in str(col).lower() or 'العرض' in str(col) for col in detections.columns)
+    has_lon = any('lon' in str(col).lower() or 'الطول' in str(col) for col in detections.columns)
+    
+    assert has_lat and has_lon, "Detections must have lat/lon columns"
+
 def _validate_config_structure(config):
     """Validate configuration structure and return critical components"""
     assert isinstance(config, dict), "Config must be dict"
@@ -98,15 +122,10 @@ def test_integration():
     try:
         aoi = mock.create_mock_aoi()
         
-        # Validate it's a geometry-like object
-        assert aoi is not None, "AOI should not be None"
-        
-        # Check if it's shapely Polygon or has expected attributes
-        if hasattr(aoi, 'is_valid'):
-            assert aoi.is_valid, "AOI must be valid geometry"
-            print(f"✅ AOI created (type: {type(aoi).__name__})")
-        elif hasattr(aoi, 'geom_type'):
-            print(f"✅ AOI created (geom_type: {aoi.geom_type})")
+        # Validate AOI geometry
+        desc = _validate_aoi_geometry(aoi)
+        if desc:
+            print(f"✅ AOI created ({desc})")
         else:
             print(f"⚠️  AOI created but format unexpected: {type(aoi)}")
             warnings.append("AOI format")
@@ -122,12 +141,10 @@ def test_integration():
     try:
         detections = mock.generate_mock_detections(num_sites=12)
         
-        assert hasattr(detections, 'columns'), "Detections must be DataFrame-like"
-        assert len(detections) == 12, f"Expected 12 sites, got {len(detections)}"
+        # Validate DataFrame structure
+        _validate_detections_dataframe(detections, 12)
         
-        # Check for required fields (handle Arabic column names)
-        has_lat = any('lat' in str(col).lower() or 'العرض' in str(col) for col in detections.columns)
-        has_lon = any('lon' in str(col).lower() or 'الطول' in str(col) for col in detections.columns)
+        # Check for confidence field
         has_conf = any('conf' in str(col).lower() or 'الثقة' in str(col) for col in detections.columns)
         
         assert has_lat, "Detections must have latitude field"
