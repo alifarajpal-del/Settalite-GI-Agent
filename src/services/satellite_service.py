@@ -17,9 +17,21 @@ class SatelliteService:
         self.config = config
         self.logger = logger
         self.sentinel_config = config['satellite']['providers']['sentinel']
+        self._rasterio_available = None
+    
+    def _has_rasterio(self) -> bool:
+        """فحص توفر مكتبة rasterio"""
+        if self._rasterio_available is None:
+            try:
+                import rasterio
+                self._rasterio_available = True
+            except ImportError:
+                self._rasterio_available = False
+        return self._rasterio_available
     
     def download_sentinel_data(
         self,
+        aoi_geometry,
         start_date: str,
         end_date: str,
         max_cloud_cover: int = 30
@@ -28,22 +40,30 @@ class SatelliteService:
         جلب بيانات Sentinel-2
         
         Args:
-            aoi_geometry: منطقة الاهتمام
-            start_date: تاريخ البداية
-            end_date: تاريخ النهاية
-            max_cloud_cover: أقصى نسبة للغيوم
+            aoi_geometry: منطقة الاهتمام (GeoDataFrame أو Shapely geometry)
+            start_date: تاريخ البداية (YYYY-MM-DD)
+            end_date: تاريخ النهاية (YYYY-MM-DD)
+            max_cloud_cover: أقصى نسبة للغيوم (0-100)
         
         Returns:
-            قاموس يحتوي على البيانات
+            قاموس يحتوي على البيانات: bands, metadata, transform, crs, bounds
+        
+        Raises:
+            ValueError: إذا كان aoi_geometry فارغاً أو غير صالح
         """
+        # فحص صحة aoi_geometry
+        if aoi_geometry is None:
+            raise ValueError("aoi_geometry لا يمكن أن يكون None")
+        
         self.logger.info(f"جلب بيانات Sentinel-2 من {start_date} إلى {end_date}")
+        self.logger.info(f"منطقة الاهتمام: {aoi_geometry.bounds if hasattr(aoi_geometry, 'bounds') else 'غير محددة'}")
         
         try:
             # في بيئة إنتاجية، استخدم sentinelhub أو sentinelsat
             # هنا نستخدم بيانات تجريبية
             rng = default_rng(42)
             
-            # محاكاة البيانات
+            # محاكاة البيانات باستخدام aoi_geometry
             bands_data = self._simulate_satellite_data(aoi_geometry)
             
             result = {
@@ -54,7 +74,7 @@ class SatelliteService:
                     'cloud_cover': rng.integers(0, max_cloud_cover),
                     'resolution': self.sentinel_config['resolution']
                 },
-                'transform': self._get_transform(aoi_geometry),
+                'transform': self._get_transform(aoi_geometry) if self._has_rasterio() else None,
                 'crs': 'EPSG:4326',
                 'bounds': aoi_geometry.bounds
             }
@@ -69,10 +89,18 @@ class SatelliteService:
     def _simulate_satellite_data(self, aoi_geometry) -> Dict[str, np.ndarray]:
         """
         محاكاة بيانات الأقمار الصناعية للتطوير والاختبار
+        
+        Args:
+            aoi_geometry: منطقة الاهتمام لحساب حجم الصورة
+        
+        Returns:
+            قاموس من اسم النطاق إلى مصفوفة numpy بقيم الانعكاسية (0-1)
         """
         rng = default_rng(42)
         bounds = aoi_geometry.bounds
-        width = int((bounds[2] - bounds[0]) * 1000)  # تقريبي
+        
+        # حساب العرض والارتفاع بناءً على حدود AOI
+        width = int((bounds[2] - bounds[0]) * 1000)  # تحويل من درجات إلى تقريبي بالأمتار
         height = int((bounds[3] - bounds[1]) * 1000)
         
         # تحديد الحجم
