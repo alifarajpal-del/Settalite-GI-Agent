@@ -79,24 +79,24 @@ def test_error_handling():
             end_date = datetime.now()
             start_date = end_date - timedelta(days=365)
             
-            scenes, error = provider.search_scenes(
-                ocean_bbox, 
-                start_date, 
-                end_date, 
-                max_cloud_cover=80
-            )
-            
-            print(f"\n📊 النتائج:")
-            print(f"   - عدد المشاهد: {len(scenes)}")
-            print(f"   - رسالة موجودة: {'✅' if error else '❌'}")
-            
-            if len(scenes) == 0 and error:
-                print(f"\n✅ تم اكتشاف عدم وجود بيانات بشكل صحيح")
-                print(f"\n📄 الرسالة:")
-                print("-" * 70)
-                # عرض أول 300 حرف فقط
-                print(error[:300] + "..." if len(error) > 300 else error)
-                print("-" * 70)
+            try:
+                scenes = provider.search_scenes(
+                    ocean_bbox, 
+                    start_date, 
+                    end_date, 
+                    max_cloud_cover=80
+                )
+                
+                print(f"\n📊 النتائج:")
+                print(f"   - عدد المشاهد: {len(scenes)}")
+                
+                if len(scenes) == 0:
+                    print(f"\n✅ لم يتم العثور على مشاهد (متوقع في المحيط)")
+                else:
+                    print(f"\n⚠️ تم العثور على {len(scenes)} مشاهد (غير متوقع)")
+            except Exception as error:
+                print(f"\n📊 النتائج:")
+                print(f"   - حدث خطأ: {str(error)[:100]}")
             
             # الاختبار 3: منطقة عادية (يجب أن تنجح)
             print("\n" + "=" * 70)
