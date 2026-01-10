@@ -495,7 +495,27 @@ class PipelineService:
             else:
                 # Demo mode or missing bands: use processing service
                 processing_service = self._get_processing_service()
-                indices = processing_service.calculate_spectral_indices(bands_data)
+                
+                # Ensure bands_data contains 2D numpy arrays, not objects
+                bands_dict = {}
+                for band_name, band_data in bands_data.items():
+                    # If band_data is an object with .data attribute (e.g., IndexTimeseries), extract it
+                    if hasattr(band_data, 'data'):
+                        arr = band_data.data
+                        # Convert 3D to 2D if needed
+                        if arr.ndim == 3:
+                            arr = np.mean(arr, axis=0)
+                        bands_dict[band_name] = arr
+                    elif isinstance(band_data, np.ndarray):
+                        # Already a numpy array
+                        if band_data.ndim == 3:
+                            bands_dict[band_name] = np.mean(band_data, axis=0)
+                        else:
+                            bands_dict[band_name] = band_data
+                    else:
+                        self.logger.warning(f"Band {band_name} has unexpected type: {type(band_data)}")
+                
+                indices = processing_service.calculate_spectral_indices(bands_dict)
             
             if indices is None or not indices:
                 error_msg = "Failed to calculate spectral indices - no indices returned"

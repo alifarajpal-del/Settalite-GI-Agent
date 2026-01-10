@@ -110,10 +110,19 @@ class AnomalyDetectionService:
             if feature in indices:
                 arr = indices[feature]
                 
+                # Extract .data if it's an object (e.g., IndexTimeseries)
+                if hasattr(arr, 'data'):
+                    arr = arr.data
+                
                 # Validate shape: must be 2D (height, width)
                 if arr.ndim != 2:
-                    self.logger.error(f"Feature {feature} has invalid shape: {arr.shape} (expected 2D)")
-                    raise ValueError(f"Feature {feature} must be 2D array, got shape {arr.shape}")
+                    if arr.ndim == 3:
+                        # Try to collapse to 2D by taking mean across time
+                        self.logger.warning(f"Feature {feature} is 3D {arr.shape}, collapsing to 2D by mean")
+                        arr = np.mean(arr, axis=0)
+                    else:
+                        self.logger.error(f"Feature {feature} has invalid shape: {arr.shape} (expected 2D)")
+                        raise ValueError(f"Feature {feature} must be 2D array, got shape {arr.shape}")
                 
                 self.logger.debug(f"Feature {feature} shape: {arr.shape}")
                 feature_arrays.append(arr)
