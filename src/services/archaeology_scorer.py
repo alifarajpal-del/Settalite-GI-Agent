@@ -59,6 +59,68 @@ class ArchaeologyScorer:
         self.config = config
         self.logger = logger or logging.getLogger(__name__)
     
+    def _calculate_site_likelihood(
+        self,
+        row,
+        idx,
+        spectral_scores,
+        spatial_scores,
+        anomaly_map,
+        kwargs
+    ):
+        """Calculate likelihood score for a single site"""
+        # Get pixel-level spectral score
+        spectral_score = self._get_site_spectral_score(
+            row.geometry, anomaly_map, spectral_scores
+        )
+        
+        # Get spatial score (clustering, patterns)
+        spatial_score = spatial_scores.get(idx, 0.0)
+        
+        # Combine with configurable weights
+        total_weight = self.config.spectral_anomaly_weight + self.config.pattern_weight
+        combined_score = (
+            spectral_score * self.config.spectral_anomaly_weight +
+            spatial_score * self.config.pattern_weight
+        ) / total_weight if total_weight > 0 else 0.0
+        
+        # Count supporting indicators
+        indicators, factors = self._collect_score_factors(
+            spectral_score, spatial_score, row.geometry, kwargs
+        )
+        
+        # Calculate confidence
+        max_indicators = 2 + (1 if 'elevation' in kwargs else 0)
+        confidence = min(100, (indicators / max_indicators) * 100) if max_indicators > 0 else 50
+        
+        # Apply landform adjustment if available
+        if 'elevation' in kwargs and 'landform_suitability' in factors:
+            combined_score = combined_score * 0.6 + factors['landform_suitability'] * 0.4
+        
+        return combined_score * 100, confidence, factors
+    
+    def _collect_score_factors(self, spectral_score, spatial_score, geometry, kwargs):
+        """Collect and count supporting score factors"""
+        indicators = 0
+        factors = {}
+        
+        if spectral_score > 0.5:
+            indicators += 1
+            factors['spectral_anomaly'] = spectral_score
+        
+        if spatial_score > 0.5:
+            indicators += 1
+            factors['spatial_clustering'] = spatial_score
+        
+        # Add landform factors if available
+        if 'elevation' in kwargs:
+            landform_score = self._score_landform(geometry, kwargs.get('elevation'))
+            if landform_score > 0.3:
+                indicators += 1
+                factors['landform_suitability'] = landform_score
+        
+        return indicators, factors
+    
     def score_sites(
         self,
         gdf: GeoDataFrame,
@@ -95,52 +157,10 @@ class ArchaeologyScorer:
         gdf['score_factors'] = [{} for _ in range(len(gdf))]
         
         for idx, row in gdf.iterrows():
-            # Get pixel-level spectral score
-            spectral_score = self._get_site_spectral_score(
-                row.geometry, anomaly_map, spectral_scores
+            # Calculate likelihood for this site
+            likelihood_score, confidence, factors = self._calculate_site_likelihood(
+                row, idx, spectral_scores, spatial_scores, anomaly_map, kwargs
             )
-            
-            # Get spatial score (clustering, patterns)
-            spatial_score = spatial_scores.get(idx, 0.0)
-            
-            # Combine with configurable weights
-            total_weight = self.config.spectral_anomaly_weight + self.config.pattern_weight
-            combined_score = (
-                spectral_score * self.config.spectral_anomaly_weight +
-                spatial_score * self.config.pattern_weight
-            ) / total_weight if total_weight > 0 else 0.0
-            
-            # Confidence based on number of supporting indicators
-            indicators = 0
-            factors = {}
-            
-            if spectral_score > 0.5:
-                indicators += 1
-                factors['spectral_anomaly'] = spectral_score
-            
-            if spatial_score > 0.5:
-                indicators += 1
-                factors['spatial_clustering'] = spatial_score
-            
-            # Add landform factors if available
-            if 'elevation' in kwargs:
-                landform_score = self._score_landform(
-                    row.geometry, kwargs.get('elevation')
-                )
-                if landform_score > 0.3:
-                    indicators += 1
-                    factors['landform_suitability'] = landform_score
-                    combined_score = (
-                        combined_score * 0.6 +
-                        landform_score * 0.4
-                    )
-            
-            # Confidence = number of supporting indicators / total possible
-            max_indicators = 2 + (1 if 'elevation' in kwargs else 0)
-            confidence = min(100, (indicators / max_indicators) * 100) if max_indicators > 0 else 50
-            
-            # Scale to 0-100 range
-            likelihood_score = combined_score * 100
             
             gdf.at[idx, 'likelihood'] = round(likelihood_score, 1)
             gdf.at[idx, 'confidence'] = round(confidence, 1)
@@ -187,6 +207,23 @@ class ArchaeologyScorer:
         scores['combined'] = combined
         return scores
     
+    def _calculate_clustering_score(self, idx, geom, gdf):
+        """Calculate clustering score for a single site"""
+        neighbors = []
+        for other_idx, other_row in gdf.iterrows():
+            if idx != other_idx:
+                dist = geom.distance(other_row.geometry)
+                # Convert to meters (rough approximation)
+                dist_m = dist * 111000  # degrees to meters
+                if dist_m < self.config.clustering_radius_m:
+                    neighbors.append(dist_m)
+        
+        # Score based on clustering
+        if len(neighbors) >= self.config.min_cluster_size:
+            # Sites are clustered - archaeological indicator
+            return min(1.0, len(neighbors) / 5)  # Max 5 neighbors
+        return 0.0
+    
     def _score_spatial_patterns(
         self,
         gdf: GeoDataFrame
@@ -206,28 +243,9 @@ class ArchaeologyScorer:
                 scores[idx] = 0.0
             return scores
         
-        # Compute pairwise distances
+        # Compute clustering scores for each site
         for idx, row in gdf.iterrows():
-            geom = row.geometry
-            
-            # Find neighbors within clustering radius
-            neighbors = []
-            for other_idx, other_row in gdf.iterrows():
-                if idx != other_idx:
-                    dist = geom.distance(other_row.geometry)
-                    # Convert to meters (rough approximation)
-                    dist_m = dist * 111000  # degrees to meters
-                    if dist_m < self.config.clustering_radius_m:
-                        neighbors.append(dist_m)
-            
-            # Score based on clustering
-            if len(neighbors) >= self.config.min_cluster_size:
-                # Sites are clustered - archaeological indicator
-                clustering_score = min(1.0, len(neighbors) / 5)  # Max 5 neighbors
-            else:
-                clustering_score = 0.0
-            
-            scores[idx] = clustering_score
+            scores[idx] = self._calculate_clustering_score(idx, row.geometry, gdf)
         
         return scores
     
