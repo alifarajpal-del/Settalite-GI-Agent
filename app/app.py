@@ -510,6 +510,17 @@ def run_analysis(target, radius, start_date, end_date, data_source, model_mode, 
         - 🛰️ Mode: {data_source}
         """)
         
+        # Warn if live mode is selected
+        if data_source == 'live':
+            st.warning("""
+            ⚠️ **Live Mode Requirements:**
+            - Sentinel Hub credentials must be configured
+            - Location must be on land (not ocean)
+            - Sentinel-2 coverage required (latitude -56° to +84°)
+            
+            If this fails, the app will show a detailed error message.
+            """)
+        
         request = PipelineRequest(
             aoi_geometry=aoi_geom,
             start_date=start_date.strftime('%Y-%m-%d'),
@@ -559,7 +570,28 @@ def run_analysis(target, radius, start_date, end_date, data_source, model_mode, 
         
         # Clear progress
         progress_bar.empty()
-        status_text.success("✅ Analysis complete!")
+        
+        # Check result status and show appropriate message
+        if result.status == 'LIVE_FAILED':
+            status_text.error(f"❌ Live mode failed: {result.failure_reason}")
+            with st.expander("🔍 What went wrong?"):
+                st.markdown(f"```\n{result.failure_reason}\n```")
+                if result.errors:
+                    st.markdown("**Errors:**")
+                    for err in result.errors:
+                        st.code(err, language="text")
+            time.sleep(2)
+        elif result.status == 'NO_DATA':
+            status_text.warning("⚠️ No satellite data found")
+        elif result.success:
+            status_text.success("✅ Analysis complete!")
+        else:
+            status_text.error(f"❌ Analysis failed: {result.status}")
+            if result.errors:
+                with st.expander("Errors"):
+                    for err in result.errors:
+                        st.error(err)
+        
         time.sleep(1)
         status_text.empty()
         
