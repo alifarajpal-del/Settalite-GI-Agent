@@ -327,19 +327,42 @@ class PipelineService:
                 self.logger.info("Using Live satellite providers (Sentinel Hub + GEE)")
                 
                 # Initialize Sentinel Hub Provider (PROMPT 3)
-                from src.providers import SentinelHubProvider
+                try:
+                    from src.providers import SentinelHubProvider
+                except ImportError as e:
+                    result.status = 'LIVE_FAILED'
+                    result.failure_reason = f'IMPORT_ERROR: Cannot import SentinelHubProvider: {e}\n\nInstall with: pip install sentinelhub'
+                    self.logger.error(result.failure_reason)
+                    result.errors.append(result.failure_reason)
+                    manifest.set_failure(result.failure_reason)
+                    return result
+                
                 from src.provenance.run_manifest import DataSource, ProcessingStep
                 
+                self.logger.info("Initializing SentinelHub provider...")
                 sh_provider = SentinelHubProvider(self.config, self.logger)
                 
                 if not sh_provider.available:
                     # Sentinel Hub not available - LIVE_FAILED
                     result.status = 'LIVE_FAILED'
-                    result.failure_reason = 'SENTINELHUB_UNAVAILABLE: Check credentials or install sentinelhub library'
-                    self.logger.error(result.failure_reason)
+                    
+                    # Get detailed reason from provider
+                    if not hasattr(sh_provider, '_unavailable_reason'):
+                        reason_detail = "Provider initialization failed. Possible causes:\n"
+                        reason_detail += "1. sentinelhub library not installed: pip install sentinelhub\n"
+                        reason_detail += "2. Missing credentials (SENTINELHUB_CLIENT_ID and SENTINELHUB_CLIENT_SECRET)\n"
+                        reason_detail += "3. Invalid credentials\n"
+                        reason_detail += "4. Network/authentication error"
+                    else:
+                        reason_detail = sh_provider._unavailable_reason
+                    
+                    result.failure_reason = f'SENTINELHUB_UNAVAILABLE: {reason_detail}'
+                    self.logger.error(f"❌ {result.failure_reason}")
                     result.errors.append(result.failure_reason)
                     manifest.set_failure(result.failure_reason)
                     return result
+                
+                self.logger.info("✓ SentinelHub provider ready")
                 
                 # Convert AOI to bbox
                 bbox = request.aoi_geometry.bounds  # (minx, miny, maxx, maxy)

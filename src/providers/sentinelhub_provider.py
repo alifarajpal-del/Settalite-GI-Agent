@@ -70,10 +70,12 @@ class SentinelHubProvider:
         """Initialize provider with Sentinel Hub credentials."""
         self.logger = logger or logging.getLogger(__name__)
         self.config_dict = config
+        self.available = False
+        self._unavailable_reason = None
         
         if not SENTINELHUB_AVAILABLE:
-            self.logger.warning("SentinelHub library not available")
-            self.available = False
+            self._unavailable_reason = "sentinelhub library not installed. Install with: pip install sentinelhub>=3.9.0"
+            self.logger.error(f"❌ {self._unavailable_reason}")
             return
         
         # Load credentials
@@ -82,19 +84,31 @@ class SentinelHubProvider:
         client_secret = config.get('sentinelhub', {}).get('client_secret') or os.getenv('SENTINELHUB_CLIENT_SECRET')
         
         if not client_id or not client_secret:
-            self.logger.warning("Sentinel Hub credentials not found")
-            self.available = False
+            self._unavailable_reason = (
+                "Sentinel Hub credentials not found.\n\n"
+                "Required environment variables:\n"
+                "- SENTINELHUB_CLIENT_ID\n"
+                "- SENTINELHUB_CLIENT_SECRET\n\n"
+                "Get free credentials at: https://www.sentinel-hub.com/\n"
+                "Then add to Streamlit secrets or .env file"
+            )
+            self.logger.error(f"❌ {self._unavailable_reason}")
             return
         
         # Configure SentinelHub
-        self.sh_config = SHConfig()
-        self.sh_config.sh_client_id = client_id
-        self.sh_config.sh_client_secret = client_secret
-        
-        self.available = True
-        self.logger.info("✓ Sentinel Hub provider initialized successfully")
-        self.logger.info(f"  Client ID: {client_id[:10]}...")
-        self.logger.info(f"  Ready to search and download Sentinel-2 imagery")
+        try:
+            self.sh_config = SHConfig()
+            self.sh_config.sh_client_id = client_id
+            self.sh_config.sh_client_secret = client_secret
+            
+            self.available = True
+            self.logger.info("✓ Sentinel Hub provider initialized successfully")
+            self.logger.info(f"  Client ID: {client_id[:10]}...")
+            self.logger.info(f"  Ready to search and download Sentinel-2 imagery")
+        except Exception as e:
+            self._unavailable_reason = f"Failed to configure Sentinel Hub: {type(e).__name__}: {e}"
+            self.logger.error(f"❌ {self._unavailable_reason}")
+            self.available = False
     
     def search_scenes(
         self,

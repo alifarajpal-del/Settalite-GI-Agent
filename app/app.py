@@ -555,11 +555,14 @@ def _render_no_data_status(result):
 
 def _render_live_failed_status(result):
     """Render LIVE_FAILED status with setup instructions"""
-    st.error("🔴 Live Analysis Failed")
+    st.error("🔴 Live Satellite Data Not Available")
+    
+    failure_text = result.failure_reason or "Live mode initialization failed"
+    
     st.markdown(f"""
     <div class='result-section' style='background-color: #ffe6e6; border-left: 4px solid #dc3545;'>
-    <h4>Analysis could not be completed with live satellite data</h4>
-    <p><strong>Reason:</strong> {result.failure_reason}</p>
+    <h4>❌ Cannot access live satellite imagery</h4>
+    <pre style='white-space: pre-wrap; font-family: monospace; font-size: 0.9em; background: #fff; padding: 10px; border-radius: 5px;'>{failure_text}</pre>
     </div>
     """, unsafe_allow_html=True)
     
