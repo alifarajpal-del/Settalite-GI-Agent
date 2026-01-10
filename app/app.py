@@ -609,6 +609,12 @@ def _render_sources_section(result, labels):
             """, unsafe_allow_html=True)
         else:
             # SUCCESS - show real sources (if available in metadata)
+            scenes_count = result.provenance.get('scenes_count', 0) if result.provenance else 0
+            
+            # Additional safeguard: if scenes_count is 0, show warning
+            if scenes_count == 0:
+                st.warning("⚠️ No satellite imagery was processed for this analysis.")
+            
             st.markdown("""
             <div class='result-section'>
             <strong>Satellite Images:</strong> {scenes_count} scenes<br>
@@ -617,7 +623,7 @@ def _render_sources_section(result, labels):
             <strong>References:</strong> Multi-temporal analysis
             </div>
             """.format(
-                scenes_count=result.provenance.get('scenes_count', 0) if result.provenance else 0,
+                scenes_count=scenes_count,
                 providers=result.provenance.get('provider', 'N/A') if result.provenance else 'N/A',
                 time_range=f"{result.provenance.get('time_range', ['N/A', 'N/A'])[0]} to {result.provenance.get('time_range', ['N/A', 'N/A'])[1]}" if result.provenance else 'N/A'
             ), unsafe_allow_html=True)
@@ -755,6 +761,19 @@ def render_results(result, labels):
     if result.status == 'NO_DATA':
         _render_no_data_status(result)
         return  # NO likelihood, NO evidence, NO aoi when no data
+    
+    # === ADDITIONAL NO_DATA CHECK: Verify actual data exists ===
+    # Check if data_quality shows 0 scenes even if status isn't explicitly NO_DATA
+    if result.data_quality:
+        total_scenes = result.data_quality.get('total_scenes', None)
+        processed_scenes = result.data_quality.get('processed_scenes', None)
+        if total_scenes == 0 or processed_scenes == 0:
+            # Override status to NO_DATA if we have zero scenes
+            result.status = 'NO_DATA'
+            if not result.failure_reason:
+                result.failure_reason = "No satellite imagery was available for the specified parameters."
+            _render_no_data_status(result)
+            return
     
     # === HANDLE LIVE_FAILED ===
     if result.status == 'LIVE_FAILED':
